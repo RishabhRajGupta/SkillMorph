@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.google.services) // Apply the Google Services plugin
 }
 
 android {
@@ -75,6 +76,7 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.googleid)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 

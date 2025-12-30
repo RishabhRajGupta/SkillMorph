@@ -1,10 +1,11 @@
 
 [versions]
 # Gradle and Plugins
-androidGradlePlugin = "8.13.2"
+androidGradlePlugin = "8.4.1"
 kotlin = "1.9.23"
 ksp = "1.9.23-1.0.19"
 hilt = "2.51.1"
+googleServices = "4.4.2" # Added Google Services Plugin version
 
 # AndroidX
 activityCompose = "1.9.0"
@@ -28,6 +29,7 @@ materialIconsExtended = "1.6.7"
 junit = "4.13.2"
 androidxJunit = "1.1.5"
 espressoCore = "3.5.1"
+googleid = "1.1.1"
 
 
 [libraries]
@@ -77,6 +79,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 
 
 [plugins]
@@ -84,3 +87,4 @@ android-application = { id = "com.android.application", version.ref = "androidGr
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" } # Added Google Services Plugin
