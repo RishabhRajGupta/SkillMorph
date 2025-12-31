@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import com.example.skillmorph.R
+import com.example.skillmorph.presentation.main.MainScreen
 import com.google.common.io.Files.append
 import kotlin.math.cos
 import kotlin.math.sin
@@ -96,11 +97,12 @@ fun AuthScreen(
             CircularProgressIndicator()
         } else if (authState.user != null) {
             // If user is logged in, show a welcome message and sign-out button
-            Text("Welcome, ${authState.user?.displayName ?: "User"}!")
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { viewModel.signOut() }) {
-                Text("Sign Out")
-            }
+//            Text("Welcome, ${authState.user?.displayName ?: "User"}!")
+//            Spacer(modifier = Modifier.height(16.dp))
+//            Button(onClick = { viewModel.signOut() }) {
+//                Text("Sign Out")
+//            }
+            MainScreen()
         } else {
             // If user is not logged in, show the sign-in button
             Text(

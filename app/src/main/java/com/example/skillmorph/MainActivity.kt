@@ -31,38 +31,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SkillMorphTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = TransparentBlack
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        GlassyBox()
-                    }
-                }
+                AuthScreen()
             }
         }
     }
 }
 
-@Composable
-fun GlassyBox(modifier: Modifier = Modifier) {
-    AuthScreen()
-}
+
 
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
     SkillMorphTheme {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            GlassyBox()
-        }
+
     }
 }
