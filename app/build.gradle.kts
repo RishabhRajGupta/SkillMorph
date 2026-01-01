@@ -24,6 +24,22 @@ android {
         }
     }
 
+    // removing key ka jhanjhat
+    signingConfigs {
+        create("sharedDebug") {
+            storeFile = file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("sharedDebug")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
