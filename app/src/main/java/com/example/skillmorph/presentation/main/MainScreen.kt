@@ -65,6 +65,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.Agent
+import com.example.skillmorph.presentation.goals.GoalsScreen
 import com.example.skillmorph.presentation.navigation.Screen
 import com.example.skillmorph.ui.theme.NeonBlue
 import com.example.skillmorph.ui.theme.NeonCyan
@@ -395,9 +396,9 @@ fun HomeScreen() {
 
 @Composable
 fun GoalsScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Goals Screen", color = Color.White)
-    }
+    GoalsScreen(onGoalClick = {
+        goalId ->
+    })
 }
 
 @Composable

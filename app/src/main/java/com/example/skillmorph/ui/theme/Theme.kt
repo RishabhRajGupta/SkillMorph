@@ -28,8 +28,26 @@ private val DarkColorScheme = darkColorScheme(
 fun SkillMorphTheme(
     content: @Composable () -> Unit
 ) {
-    // Your finalized gradient brush
-    val gradientBrush = Brush.linearGradient(
+
+
+    MaterialTheme(
+        colorScheme = DarkColorScheme,
+        typography = Typography
+    ) {
+        // A Box that provides the gradient background for the whole app.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradientBrush())
+        ) {
+            // The actual screen content is placed inside this Box.
+            content()
+        }
+    }
+}
+
+fun gradientBrush(): Brush {
+    return Brush.linearGradient(
         colors = listOf(
             Color(0xFF17BEBE),
             Color(0xFF248D8D),
@@ -44,19 +62,4 @@ fun SkillMorphTheme(
         start = Offset.Zero,
         end = Offset.Infinite
     )
-
-    MaterialTheme(
-        colorScheme = DarkColorScheme,
-        typography = Typography
-    ) {
-        // A Box that provides the gradient background for the whole app.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradientBrush)
-        ) {
-            // The actual screen content is placed inside this Box.
-            content()
-        }
-    }
 }
