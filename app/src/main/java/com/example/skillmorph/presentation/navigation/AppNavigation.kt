@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.presentation.auth.AuthScreen
 import com.example.skillmorph.presentation.auth.AuthViewModel
+import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
 import com.example.skillmorph.presentation.main.MainScreen
 
 /**
@@ -46,10 +47,23 @@ fun AppNavigation(
         startDestination = "auth_route"
     ) {
         composable(route = "auth_route") {
-            AuthScreen()
+            AuthScreen(appNavController = navController)
         }
         composable(route = "main_route") {
-            MainScreen()
+            MainScreen(navController)
+        }
+        // The new destination for the Metro Map screen
+        composable("metro_map_screen/{goalId}") { backStackEntry ->
+            val goalId = backStackEntry.arguments?.getString("goalId")
+
+            // Call the new top-level screen
+            MetroMapScreen(
+                goalId = goalId,
+                onNavigateBack = {
+                    // This allows the back button to work
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }

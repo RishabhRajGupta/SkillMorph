@@ -62,6 +62,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.navigation.NavHostController
 import com.example.skillmorph.R
 import com.example.skillmorph.presentation.main.MainScreen
 import com.google.common.io.Files.append
@@ -72,7 +73,8 @@ import kotlin.random.Random
 
 @Composable
 fun AuthScreen(
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel = hiltViewModel(),
+    appNavController: NavHostController
 ) {
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
@@ -102,7 +104,7 @@ fun AuthScreen(
 //            Button(onClick = { viewModel.signOut() }) {
 //                Text("Sign Out")
 //            }
-            MainScreen()
+            MainScreen(appNavController = appNavController)
         } else {
             // If user is not logged in, show the sign-in button
             Text(

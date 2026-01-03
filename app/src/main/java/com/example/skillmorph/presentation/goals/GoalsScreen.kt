@@ -2,6 +2,7 @@ package com.example.skillmorph.presentation.goals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,7 @@ fun GoalsScreen(onGoalClick: (Long) -> Unit) {
                 goal = goal, onGoalClick = onGoalClick,
                 modifier = Modifier
                     .clip(shape = RoundedCornerShape(16.dp))
+                    .clickable{onGoalClick(goal.id)}
                     .border(2.dp, gradientBrush, shape = RoundedCornerShape(16.dp))
                     .background(color = Color.White.copy(alpha = 0.1f))
             )

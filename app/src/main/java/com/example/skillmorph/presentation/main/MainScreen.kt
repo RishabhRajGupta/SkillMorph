@@ -43,6 +43,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -65,15 +67,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.Agent
+import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
+import com.example.skillmorph.presentation.goaldetail.MetroMapViewModel
 import com.example.skillmorph.presentation.goals.GoalsScreen
 import com.example.skillmorph.presentation.navigation.Screen
 import com.example.skillmorph.ui.theme.NeonBlue
 import com.example.skillmorph.ui.theme.NeonCyan
 import com.example.skillmorph.ui.theme.TransparentWhite
 import com.example.skillmorph.utils.glassEffect
+import com.example.skillmorph.presentation.goaldetail.MetroMapTimeline
+
 
 @Composable
-fun MainScreen() {
+fun MainScreen(appNavController: NavController) {
     val navController = rememberNavController()
     var isVoiceMode by remember { mutableStateOf(true) }
 
@@ -101,9 +107,15 @@ fun MainScreen() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Goals.route) { GoalsScreen() }
+            composable(Screen.Goals.route) {
+                GoalsScreen(onGoalClick = { goalId ->
+                    // Navigate to the metro map screen with the goal's ID
+                    appNavController.navigate("metro_map_screen/$goalId")
+                })
+            }
             composable(Screen.Tasks.route) { TasksScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
+
         }
     }
 }
@@ -392,13 +404,6 @@ fun HomeScreen() {
 
         Agent()
     }
-}
-
-@Composable
-fun GoalsScreen() {
-    GoalsScreen(onGoalClick = {
-        goalId ->
-    })
 }
 
 @Composable

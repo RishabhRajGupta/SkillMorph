@@ -34,6 +34,10 @@ interface SkillMorphDao {
     @Query("SELECT * FROM tasks WHERE scheduledDate = :date")
     fun getTasksForDate(date: Long): Flow<List<TaskEntity>>
 
+    // Added function to get all tasks for a specific goal ID, sorted by date
+    @Query("SELECT * FROM tasks WHERE goalId = :goalId ORDER BY scheduledDate ASC")
+    fun getTasksForGoal(goalId: Long): Flow<List<TaskEntity>>
+
     // --- Chat Operations ---
     @Insert
     suspend fun insertChatMessage(chatMessage: ChatEntity)
