@@ -76,6 +76,7 @@ import com.example.skillmorph.ui.theme.NeonCyan
 import com.example.skillmorph.ui.theme.TransparentWhite
 import com.example.skillmorph.utils.glassEffect
 import com.example.skillmorph.presentation.goaldetail.MetroMapTimeline
+import com.example.skillmorph.presentation.tasks.TasksScreen
 
 
 @Composable
@@ -403,13 +404,6 @@ fun HomeScreen() {
         // ... Background & Content ...
 
         Agent()
-    }
-}
-
-@Composable
-fun TasksScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Tasks Screen", color = Color.White)
     }
 }
 

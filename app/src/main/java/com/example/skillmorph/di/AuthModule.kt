@@ -2,10 +2,13 @@
 package com.example.skillmorph.di
 
 import com.example.skillmorph.data.repository.AuthRepositoryImpl
+import com.example.skillmorph.data.repository.TasksRepositoryImpl
 import com.example.skillmorph.domain.repository.AuthRepository
+import com.example.skillmorph.domain.repository.TasksRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -14,13 +17,19 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object AuthModule {
+abstract class AuthModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = Firebase.auth
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideAuthRepository(impl: AuthRepositoryImpl): AuthRepository = impl
+    abstract fun bindTasksRepository(impl: TasksRepositoryImpl): TasksRepository
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideFirebaseAuth(): FirebaseAuth = Firebase.auth
+    }
 }
