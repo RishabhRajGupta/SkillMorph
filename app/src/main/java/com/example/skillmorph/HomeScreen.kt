@@ -12,8 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+// import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.isActive
 import java.util.Locale
@@ -42,7 +43,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
+// import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Stop
@@ -58,40 +60,42 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.launch
+// import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.collectAsState
+import com.example.skillmorph.presentation.home.HomeViewModel
+// import com.example.skillmorph.data.local.entities.ChatEntity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.net.Uri
 
 
 @Composable
-fun Agent() {
+fun Agent(
+    // INJECTION: We inject the Brain (ViewModel) here
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     var isVoiceMode by remember { mutableStateOf(true) }
 
-    // Use a Box to layer everything
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Transparent) // Or your main app background gradient
+            .background(Color.Transparent)
     ) {
-        // --- LAYER 1: CONTENT ---
-        // Crossfade makes the switch smooth instead of instant
         androidx.compose.animation.Crossfade(targetState = isVoiceMode, label = "mode") { voice ->
             if (voice) {
-                // Your existing Particle Voice Screen
-                AgentRing()
+                // PASSING THE BRAIN: We pass the viewModel to the voice screen
+                AgentRing(viewModel = viewModel)
             } else {
-                // The new Chat Screen
-                AgentChat()
+                // PASSING THE BRAIN: We pass the viewModel to the chat screen
+                AgentChat(viewModel = viewModel)
             }
         }
 
-        // --- LAYER 2: TOGGLE CHIP ---
-        // This floats on top of everything
         Box(
             modifier = Modifier
-                .align(Alignment.TopEnd) // Placing it at bottom-right
-                .padding(end = 24.dp) // Adjust padding to sit above Send button/Mic
+                .align(Alignment.TopEnd)
+                .padding(end = 24.dp)
         ) {
-            // Assuming you have the GlassInputModeChip from previous steps
-            // If using the snippet you pasted, ensure InputModeChip is defined
             GlassInputModeChip(
                 isVoiceMode = isVoiceMode,
                 onToggle = { isVoiceMode = !isVoiceMode }
@@ -229,17 +233,16 @@ data class RingParticle(
 )
 
 @Composable
-fun AgentRing() {
+fun AgentRing(viewModel: HomeViewModel) { // <--- Added ViewModel param
     val context = LocalContext.current
 
-    // --- STATES ---
+    // ... (Keep existing state variables: isAgentSpeaking, isUserSpeaking, visualAmplitude, particles) ...
     var isAgentSpeaking by remember { mutableStateOf(false) }
-    var isUserSpeaking by remember { mutableStateOf(false) } // Are we recording?
-    var visualAmplitude by remember { mutableStateOf(0f) }
-
+    var isUserSpeaking by remember { mutableStateOf(false) }
+    var visualAmplitude by remember { mutableFloatStateOf(0f) }
     val particles = remember { mutableStateListOf<RingParticle>() }
 
-    // --- 1. TTS SETUP ---
+    // ... (Keep TTS setup exactly as it was) ...
     val tts = remember {
         TextToSpeech(context) { status ->
             if (status != TextToSpeech.SUCCESS) Log.e("TTS", "Init failed")
@@ -251,12 +254,13 @@ fun AgentRing() {
                     isAgentSpeaking = false
                     visualAmplitude = 0f
                 }
+                @Suppress("DEPRECATION")
                 override fun onError(id: String?) { isAgentSpeaking = false }
             })
         }
     }
 
-    // --- 2. SPEECH RECOGNIZER SETUP ---
+    // --- THE INPUT BRIDGE (Voice Logic) ---
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     val speechIntent = remember {
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -265,32 +269,26 @@ fun AgentRing() {
         }
     }
 
-    // Function to handle the result
     val onSpeechResult = { text: String ->
-        isUserSpeaking = false // Stop listening visual
+        isUserSpeaking = false
 
-        // HARDCODED LOGIC: Check for "Hello"
-        if (text.contains("hello", ignoreCase = true)) {
-            val params = Bundle()
-            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "introID")
-            tts.speak(
-                "Hello there! I am Skill Morph, your personal AI assistant. How can I help you level up today?",
-                TextToSpeech.QUEUE_FLUSH,
-                params,
-                "introID"
-            )
-        } else {
-            Toast.makeText(context, "You said: $text (Try saying 'Hello')", Toast.LENGTH_SHORT).show()
-        }
+        // ARCHITECT UPDATE: Save directly to Database!
+        // This sends the voice text to the ViewModel, which saves it to Room.
+        viewModel.sendMessage(text, isUser = true)
+
+        // API HOOK NOTE: The ViewModel will handle triggering the AI response.
+        // For now, let's just confirm receipt via Toast or TTS
+        Toast.makeText(context, "Saved to Memory: $text", Toast.LENGTH_SHORT).show()
     }
 
-    // Set up the listener callbacks
+    // ... (Keep the DisposableEffect and PermissionLauncher exactly as they were) ...
     DisposableEffect(Unit) {
+        @Suppress("DEPRECATION")
         val listener = object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {
-                // Optional: You could make particles react to YOUR voice here using 'rmsdB'
+                // Optional: Visual reaction logic
             }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() { isUserSpeaking = false }
@@ -314,7 +312,6 @@ fun AgentRing() {
         }
     }
 
-    // Permission Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -325,6 +322,10 @@ fun AgentRing() {
             Toast.makeText(context, "Microphone permission needed", Toast.LENGTH_SHORT).show()
         }
     }
+
+    // ... (Keep Particles Initialization, Animation Loop, and UI Layout exactly as they were) ...
+    // Note: Copy the rest of your original AgentRing (Canvas, FloatingActionButton) here.
+    // Ensure you use the same variable names.
 
     // --- INITIALIZATION: FORM THE RING (Same as before) ---
     LaunchedEffect(Unit) {
@@ -348,19 +349,14 @@ fun AgentRing() {
             withFrameNanos { time ->
                 // AMPLITUDE LOGIC
                 if (isAgentSpeaking) {
-                    // Agent Speaking: Big Waves
                     val wave = sin(time / 90000000.0).toFloat()
-                    visualAmplitude = (Math.abs(wave) * 0.6f) + 0.1f
+                    visualAmplitude = (kotlin.math.abs(wave) * 0.6f) + 0.1f
                 } else if (isUserSpeaking) {
-                    // User Speaking (Listening Mode): Fast nervous vibration
                     visualAmplitude = 0.3f + Random.nextFloat() * 0.1f
                 } else {
-                    // Idle: Slow breathing
                     val breath = sin(time / 500000000.0).toFloat()
                     visualAmplitude = (breath * 0.1f)
                 }
-
-                // Update Particles
                 particles.forEach { p -> p.angle += p.speed }
             }
         }
@@ -372,8 +368,6 @@ fun AgentRing() {
             .fillMaxSize()
             .background(Color.Transparent)
     ) {
-
-
         // 1. The Particle Canvas
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2, size.height / 2)
@@ -381,19 +375,15 @@ fun AgentRing() {
             particles.forEach { p ->
                 val expansionFactor = if (isAgentSpeaking) (1f + visualAmplitude * 0.5f) else 1f
                 val currentDistance = p.baseDistance * expansionFactor
-
-                // Jitter adds the "electric" look
                 val jitter = if (isAgentSpeaking || isUserSpeaking) Random.nextFloat() * 10f else 0f
-
                 val rad = Math.toRadians(p.angle.toDouble())
                 val x = center.x + (cos(rad) * currentDistance).toFloat() + jitter
                 val y = center.y + (sin(rad) * currentDistance).toFloat() + jitter
 
-                // COLOR LOGIC
                 val particleColor = when {
-                    isAgentSpeaking -> Color(0xFF00FFFF).copy(alpha = 0.8f) // Cyan (Agent Talking)
-                    isUserSpeaking -> Color(0xFF00FF00).copy(alpha = 0.8f)  // Green (Listening to You)
-                    else -> Color(0xFF0088AA).copy(alpha = 0.4f)            // Dim Blue (Idle)
+                    isAgentSpeaking -> Color(0xFF00FFFF).copy(alpha = 0.8f)
+                    isUserSpeaking -> Color(0xFF00FF00).copy(alpha = 0.8f)
+                    else -> Color(0xFF0088AA).copy(alpha = 0.4f)
                 }
 
                 drawCircle(
@@ -404,7 +394,7 @@ fun AgentRing() {
             }
         }
 
-        // 2. The Mic Button (Bottom Center)
+        // 2. The Mic Button
         FloatingActionButton(
             onClick = {
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -431,50 +421,75 @@ fun AgentRing() {
     }
 }
 
-
 data class ChatMessage(val text: String, val isUser: Boolean)
 
 @Composable
-fun AgentChat() {
-    // 1. Dummy Chat History
-    val messages = remember { mutableStateListOf(
-        ChatMessage("Hello! I am Skill Morph.", isUser = false),
-        ChatMessage("How can I help you today?", isUser = false)
-    )}
+fun AgentChat(viewModel: HomeViewModel) {
+    val messages by viewModel.messages.collectAsState()
+    val context = LocalContext.current
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
+
+    // --- ARCHITECT STEP 2: The File Picker Launcher ---
+    // This launcher stays "on standby" until we call .launch()
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            // ARCHITECT: This is the hand-off.
+            // If this line is here, 'processFile' will become active (colorful).
+            viewModel.processFile(context, uri)
+        }
+    }
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Transparent) // Transparent so app background shows
-            .padding(top = 80.dp), // Leave space for TopBar if you have one
+            .background(Color.Transparent)
+            .padding(top = 80.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
-        // --- CHAT LIST ---
+        // --- CHAT LIST (Unchanged) ---
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(messages) { msg ->
-                MessageBubble(message = msg)
+                val uiMessage = ChatMessage(msg.message, msg.isUser)
+                MessageBubble(message = uiMessage)
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
 
         // --- INPUT AREA ---
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp), // Extra padding for Bottom Nav/Chip
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                onClick = {
+                    // ARCHITECT STEP 2: Launch the picker
+                    // We look for any file type for now, but usually it's "text/plain" or "application/pdf"
+                    filePickerLauncher.launch("application/pdf") // (make it */* if you want take any file as input)
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add File",
+                    tint = Color(0xFF00E5FF)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+
             TextField(
                 value = inputText,
                 onValueChange = { inputText = it },
@@ -493,23 +508,16 @@ fun AgentChat() {
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Send Button
             IconButton(
                 onClick = {
                     if (inputText.isNotBlank()) {
-                        messages.add(ChatMessage(inputText, isUser = true))
+                        viewModel.sendMessage(inputText, isUser = true)
                         inputText = ""
-                        // Scroll to bottom
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(messages.size - 1)
-                        }
                     }
                 },
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(Color(0xFF00E5FF), CircleShape)
+                modifier = Modifier.size(48.dp).background(Color(0xFF00E5FF), CircleShape)
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.Black)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Black)
             }
         }
     }

@@ -3,8 +3,10 @@ package com.example.skillmorph.di
 
 import com.example.skillmorph.data.repository.AuthRepositoryImpl
 import com.example.skillmorph.data.repository.TasksRepositoryImpl
+import com.example.skillmorph.data.repository.ChatRepositoryImpl
 import com.example.skillmorph.domain.repository.AuthRepository
 import com.example.skillmorph.domain.repository.TasksRepository
+import com.example.skillmorph.domain.repository.ChatRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -26,6 +28,10 @@ abstract class AuthModule {
     @Binds
     @Singleton
     abstract fun bindTasksRepository(impl: TasksRepositoryImpl): TasksRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(impl: ChatRepositoryImpl): ChatRepository
 
     companion object {
         @Provides

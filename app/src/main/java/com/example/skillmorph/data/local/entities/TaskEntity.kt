@@ -10,12 +10,14 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "tasks",
+    // NEW: We added this indices line to fix the error
+    indices = [androidx.room.Index(value = ["goalId"])],
     foreignKeys = [
-        ForeignKey(
+        androidx.room.ForeignKey(
             entity = GoalEntity::class,
             parentColumns = ["id"],
             childColumns = ["goalId"],
-            onDelete = ForeignKey.CASCADE // If a goal is deleted, its tasks are also deleted.
+            onDelete = androidx.room.ForeignKey.CASCADE
         )
     ]
 )

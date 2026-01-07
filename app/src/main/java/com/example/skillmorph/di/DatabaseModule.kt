@@ -25,7 +25,9 @@ object DatabaseModule {
             context,
             SkillMorphDatabase::class.java,
             SkillMorphDatabase.DATABASE_NAME
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides

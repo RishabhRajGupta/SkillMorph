@@ -44,4 +44,19 @@ interface SkillMorphDao {
 
     @Query("SELECT * FROM chats ORDER BY timestamp ASC")
     fun getAllChatMessages(): Flow<List<ChatEntity>>
+
+    // --- Knowledge Shelf Operations (FTS4) ---
+
+    // 1. Hook for the API Guy:  call this to save chunks of PDF text.
+    @Insert
+    suspend fun insertKnowledgeChunk(chunk: com.example.skillmorph.data.local.entities.KnowledgeChunkEntity)
+
+    // 2. The Magic Search Query
+    // This uses the special "MATCH" command which is specific to FTS4 tables.
+    // It finds knowledge instantly, ranked by relevance.
+    @Query("""
+        SELECT rowid, * FROM knowledge_chunks 
+        WHERE knowledge_chunks MATCH :query
+    """)
+    fun searchKnowledge(query: String): kotlinx.coroutines.flow.Flow<List<com.example.skillmorph.data.local.entities.KnowledgeChunkEntity>>
 }
