@@ -39,7 +39,7 @@ class FileProcessor(
 
             // 2. THE GRINDER (Chunking Logic)
             val words = extractedText.trim().split(Regex("\\s+"))
-            val chunkSize = 500
+            val chunkSize =  500
             var chunksCreated = 0
 
             for (i in words.indices step chunkSize) {
