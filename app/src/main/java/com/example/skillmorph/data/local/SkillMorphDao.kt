@@ -6,9 +6,11 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.example.skillmorph.data.local.entities.ChatEntity
 import com.example.skillmorph.data.local.entities.GoalEntity
 import com.example.skillmorph.data.local.entities.TaskEntity
+import com.example.skillmorph.data.local.entities.KnowledgeChunkEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -28,15 +30,20 @@ interface SkillMorphDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: TaskEntity)
 
+    @Update
+    suspend fun updateTask(task: TaskEntity)
+
     @Delete
     suspend fun deleteTask(task: TaskEntity)
 
     @Query("SELECT * FROM tasks WHERE scheduledDate = :date")
     fun getTasksForDate(date: Long): Flow<List<TaskEntity>>
 
-    // Added function to get all tasks for a specific goal ID, sorted by date
     @Query("SELECT * FROM tasks WHERE goalId = :goalId ORDER BY scheduledDate ASC")
     fun getTasksForGoal(goalId: Long): Flow<List<TaskEntity>>
+
+    @Query("UPDATE tasks SET isCompleted = :isCompleted WHERE id = :taskId")
+    suspend fun updateTaskStatus(taskId: Int, isCompleted: Boolean)
 
     // --- Chat Operations ---
     @Insert
@@ -45,18 +52,10 @@ interface SkillMorphDao {
     @Query("SELECT * FROM chats ORDER BY timestamp ASC")
     fun getAllChatMessages(): Flow<List<ChatEntity>>
 
-    // --- Knowledge Shelf Operations (FTS4) ---
-
-    // 1. Hook for the API Guy:  call this to save chunks of PDF text.
+    // --- Knowledge Shelf Operations ---
     @Insert
-    suspend fun insertKnowledgeChunk(chunk: com.example.skillmorph.data.local.entities.KnowledgeChunkEntity)
+    suspend fun insertKnowledgeChunk(chunk: KnowledgeChunkEntity)
 
-    // 2. The Magic Search Query
-    // This uses the special "MATCH" command which is specific to FTS4 tables.
-    // It finds knowledge instantly, ranked by relevance.
-    @Query("""
-        SELECT rowid, * FROM knowledge_chunks 
-        WHERE knowledge_chunks MATCH :query
-    """)
-    fun searchKnowledge(query: String): kotlinx.coroutines.flow.Flow<List<com.example.skillmorph.data.local.entities.KnowledgeChunkEntity>>
+    @Query("SELECT rowid, * FROM knowledge_chunks WHERE knowledge_chunks MATCH :query")
+    fun searchKnowledge(query: String): Flow<List<KnowledgeChunkEntity>>
 }

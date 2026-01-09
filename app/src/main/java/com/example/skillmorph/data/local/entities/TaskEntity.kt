@@ -2,7 +2,6 @@
 package com.example.skillmorph.data.local.entities
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 
 /**
@@ -28,5 +27,6 @@ data class TaskEntity(
     val title: String,
     val scheduledDate: Long, // Timestamp for the date
     val isCompleted: Boolean = false,
-    val isBufferTask: Boolean = false // A special task for buffer days
+    val isBufferTask: Boolean = false, // A special task for buffer days
+    val priority: Int
 )

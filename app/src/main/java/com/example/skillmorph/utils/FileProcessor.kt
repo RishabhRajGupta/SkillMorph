@@ -11,22 +11,24 @@ class FileProcessor(
     private val context: Context,
     private val repository: ChatRepository
 ) {
-    suspend fun processFile(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun processFile(uri: android.net.Uri): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val contentResolver = context.contentResolver
-            val mimeType = contentResolver.getType(uri)
+            // ARCHITECT NOTE: We explicitly check the file type
+            val mimeType = contentResolver.getType(uri) ?: "text/plain"
             val fileName = uri.lastPathSegment ?: "Unknown_File"
 
-            // 1. EXTRACTION ZONE
             val extractedText = when {
-                mimeType == "application/pdf" -> {
-                    // --- BRIDGE FOR API DEVELOPER ---
-                    // TODO: API Guy needs to add PDFBox or ML Kit here.
-                    // For now, we return a placeholder so the architect can test the flow.
-                    "PDF CONTENT PLACEHOLDER: The API Developer will implement PDF text extraction here for file: $fileName"
+                // PDF LOADING BAY
+                mimeType == "application/pdf" || fileName.endsWith(".pdf") -> {
+                    // This is where the API Guy will use a library like PdfBox
+                    // For now, we return a "Searchable Placeholder" for testing
+                    "KNOWLEDGE_BASE_PDF_MARKER: This file $fileName is a PDF. " +
+                            "Content extraction will be active once the PDF library is linked."
                 }
+
+                // TEXT LOADING BAY
                 else -> {
-                    // Standard Text reading
                     contentResolver.openInputStream(uri)?.use { inputStream ->
                         inputStream.bufferedReader().use { it.readText() }
                     }

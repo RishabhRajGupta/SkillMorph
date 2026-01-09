@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.lazy.items
 // import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.isActive
@@ -64,6 +65,9 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.collectAsState
 import com.example.skillmorph.presentation.home.HomeViewModel
+import com.example.skillmorph.presentation.home.components.MetroTrack
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 // import com.example.skillmorph.data.local.entities.ChatEntity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import android.net.Uri
@@ -426,8 +430,11 @@ data class ChatMessage(val text: String, val isUser: Boolean)
 @Composable
 fun AgentChat(viewModel: HomeViewModel) {
     val messages by viewModel.messages.collectAsState()
-    val context = LocalContext.current
 
+    // 2. NEW: Observe the Metro Stations (This fixes the red "stations" error)
+    val stations by viewModel.metroStations.collectAsState()
+
+    val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -456,11 +463,21 @@ fun AgentChat(viewModel: HomeViewModel) {
             .padding(top = 80.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
+        // --- NEW: THE METRO TRACK ---
+        if (stations.isNotEmpty()) {
+            MetroTrack(
+                stations = stations,
+                onStationClick = { id, isDone -> viewModel.toggleStation(id, isDone) }
+            )
+        }
+
+
         // --- CHAT LIST (Unchanged) ---
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 16.dp)
+
         ) {
             items(messages) { msg ->
                 val uiMessage = ChatMessage(msg.message, msg.isUser)
