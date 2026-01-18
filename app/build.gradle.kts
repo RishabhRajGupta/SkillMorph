@@ -112,6 +112,8 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.analytics.ktx)
 
+    implementation(libs.compose.markdown)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

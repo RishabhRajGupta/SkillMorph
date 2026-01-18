@@ -6,6 +6,7 @@ kotlin = "1.9.23"
 ksp = "1.9.23-1.0.19"
 hilt = "2.51.1"
 googleServices = "4.4.2" # Added Google Services Plugin version
+composeMarkdown = "0.5.0"
 
 # AndroidX
 activityCompose = "1.9.0"
@@ -33,6 +34,7 @@ googleid = "1.1.1"
 
 
 [libraries]
+compose-markdown = { module = "com.github.jeziellago:compose-markdown", version.ref = "composeMarkdown" }
 # AndroidX Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }

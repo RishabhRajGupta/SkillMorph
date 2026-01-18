@@ -16,9 +16,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io") // <-- Add this line
     }
 }
 
 rootProject.name = "SkillMorph"
 include(":app")
- 
