@@ -1,9 +1,10 @@
 import json
+import re
 from datetime import date
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.services.llm_service import llm_service
 from app.agent.state import AgentState
-from app.services.graph_crud import create_goal_in_db, generate_timeline
+from app.services.graph_crud import create_goal_in_db, generate_timeline, update_day_content
 from app.schemas.graph_models import GoalCreate
 
 # --- HELPER: SYSTEM PROMPTS ---
@@ -73,11 +74,31 @@ def chat_node(state: AgentState):
     response = llm_service.model.generate_content(full_prompt)
     return {"messages": [AIMessage(content=response.text)]}
 
+# --- HELPER: ROBUST JSON EXTRACTOR ---
+def extract_json(text: str):
+    """
+    Finds a JSON object inside a string using Regex.
+    Solves the issue where Gemini says "Here is the JSON: {...}"
+    """
+    try:
+        # 1. Try standard parsing first
+        # Clean potential markdown wrappers
+        clean_text = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_text)
+    except:
+        # 2. Use Regex to find the first '{' and the last '}'
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            clean_text = match.group(0)
+            return json.loads(clean_text)
+        else:
+            raise ValueError("No JSON found in response")
+
 # 3. THE GOAL NODE (The Builder)
 def goal_node(state: AgentState):
     print("🔨 Entering Goal Node...")
     last_message = state["messages"][-1].content
-    user_id = "test_user_123" # Hardcoded for now
+    user_id = "test_user_123" 
     
     # STEP A: Extract Data using Gemini
     extraction_prompt = f"""
@@ -87,29 +108,44 @@ def goal_node(state: AgentState):
     {{
         "title": "Short title (e.g. Learn Python)",
         "category": "One word category",
-        "days": 30 (Default to 30 if not specified)
+        "days": 30
     }}
     """
-    raw_json = llm_service.model.generate_content(extraction_prompt).text
-    
-    # Clean up JSON (Gemini sometimes adds ```json ... ``` wrappers)
-    clean_json = raw_json.replace("```json", "").replace("```", "").strip()
+    raw_response = llm_service.model.generate_content(extraction_prompt).text
     
     try:
-        data = json.loads(clean_json)
+        # 1. Robust Extraction
+        data = extract_json(raw_response)
         print(f"   📊 Extracted: {data}")
         
         # STEP B: Save to Neo4j
-        new_goal = GoalCreate(title=data["title"], category=data["category"])
+        new_goal = GoalCreate(title=data["title"], category=data.get("category", "General"))
         db_result = create_goal_in_db(user_id, new_goal)
         
         if db_result:
             goal_id = db_result["id"]
             
-            # STEP C: Generate Timeline
-            days_count = generate_timeline(goal_id, date.today(), data["days"])
+            # STEP C: Generate Timeline (Skeleton)
+            # Creates 30 nodes with "Pending Generation"
+            days_count = generate_timeline(goal_id, date.today(), data.get("days", 30))
             
-            response_text = f"✅ Goal Created: **{data['title']}**\n📅 Timeline: Generated {days_count} daily steps."
+            # 🚀 STEP D: JUST-IN-TIME GENERATION (Day 1)
+            # Immediately fill in Day 1 so the user doesn't see an empty map
+            print("🧠 Generating Day 1 Content...")
+            try:
+                first_day_content = llm_service.generate_day_topic(data["title"], 1)
+                
+                update_day_content(
+                    goal_id, 
+                    1, 
+                    first_day_content["topic"], 
+                    first_day_content["sub_tasks"]
+                )
+                print(f"   ✅ Day 1 Ready: {first_day_content['topic']}")
+            except Exception as e:
+                print(f"   ⚠️ Day 1 Generation Failed (Background job will handle it later): {e}")
+
+            response_text = f"✅ Goal Created: **{data['title']}**\n📅 Timeline: {days_count} days created.\n\nI have prepared Day 1 for you. Check the map!"
         else:
             response_text = "❌ Database Error: Could not save goal."
 

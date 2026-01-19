@@ -48,7 +48,7 @@ import java.util.Locale
 @Composable
 fun GoalCard(
     goal: GoalEntity,
-    onGoalClick: (Long) -> Unit,
+    onGoalClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(

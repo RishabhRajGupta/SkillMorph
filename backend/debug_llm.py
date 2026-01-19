@@ -25,7 +25,7 @@ def test_gemini():
         # 2. Test Generation (Summarization)
         print("\n1. Testing Text Generation...")
         response = client.models.generate_content(
-            model="gemini-1.5-flash-001", # <--- UPDATE THIS LINE
+            model="gemini-2.5-flash", # <--- UPDATE THIS LINE
             contents="Say 'Hello System' if you can hear me."
         )
 

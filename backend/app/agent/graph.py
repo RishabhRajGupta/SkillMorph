@@ -1,9 +1,11 @@
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from app.agent.state import AgentState
 from app.agent.nodes import router_node, chat_node, goal_node, task_node
 
-# 1. Initialize Graph
+# 1. Initialize Graph & Memory
 workflow = StateGraph(AgentState)
+memory = MemorySaver()
 
 # 2. Add Nodes
 workflow.add_node("router", router_node)
@@ -34,4 +36,4 @@ workflow.add_edge("goal_node", END)
 workflow.add_edge("task_node", END)
 
 # 6. Compile
-agent_app = workflow.compile()
+agent_app = workflow.compile(checkpointer=memory)

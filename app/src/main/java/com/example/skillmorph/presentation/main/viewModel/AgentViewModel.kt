@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import org.json.JSONObject
+import java.util.UUID
 
 // Data class for chat messages
 data class ChatMessage(
@@ -44,6 +45,8 @@ class AgentViewModel @Inject constructor(
         currentList.add(ChatMessage(text, isUser = true))
         _messages.value = currentList
 
+        // Creating session of one chat
+        val sessionId = UUID.randomUUID().toString()
         // 2. Set "Thinking"
         _isAgentThinking.value = true
 
@@ -53,7 +56,8 @@ class AgentViewModel @Inject constructor(
                 val apiResult = api.chat(
                     ChatRequest(
                         message = text,
-                        is_voice_mode = isVoice
+                        is_voice_mode = isVoice,
+                        session_id = sessionId
                     )
                 )
 

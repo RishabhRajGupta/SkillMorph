@@ -9,7 +9,8 @@ class MemoryService:
         # Connect to Qdrant Cloud
         self.client = QdrantClient(
             url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY
+            api_key=settings.QDRANT_API_KEY,
+            timeout = 60.0
         )
         self.collection_name = "user_memories"
         self._ensure_collection_exists()

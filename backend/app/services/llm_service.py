@@ -33,5 +33,34 @@ class LLMService:
         except Exception as e:
             print(f"❌ Gemini Error: {e}")
             return "Could not summarize."
-
+        
+    def generate_day_topic(self, goal_title: str, day_number: int, context: str = "") -> dict:
+        """
+        Generates a specific title and subtasks for a single day.
+        """
+        prompt = f"""
+        You are a syllabus generator. Create a lesson plan for Day {day_number} of the goal: '{goal_title}'.
+        Previous context: {context}
+        
+        OUTPUT JSON ONLY:
+        {{
+            "topic": "Short Title (e.g. Variables & Data Types)",
+            "sub_tasks": ["Read X", "Practice Y", "Build Z"]
+        }}
+        """
+        try:
+            # We use the raw generation (assuming you have a method for it, or use the existing one)
+            response = self.model.generate_content(prompt)
+            # Simple cleanup of markdown
+            clean_text = response.text.replace("```json", "").replace("```", "").strip()
+            import json
+            return json.loads(clean_text)
+        except Exception as e:
+            print(f"⚠️ LLM Generation Failed: {e}")
+            return {
+                "topic": f"Day {day_number}: Learning Session",
+                "sub_tasks": ["Study the material", "Practice", "Review"]
+            }
+        
+             
 llm_service = LLMService()

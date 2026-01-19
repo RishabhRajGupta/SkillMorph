@@ -17,11 +17,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.skillmorph.data.local.entities.GoalEntity
 import com.example.skillmorph.presentation.goals.components.GoalCard
 import com.example.skillmorph.ui.theme.gradientBrush
 
+// Change 'Long' to 'String' in the signature
 @Composable
-fun GoalsScreen(onGoalClick: (Long) -> Unit) {
+fun GoalsScreen(onGoalClick: (String) -> Unit) {
     val viewModel: GoalsViewModel = hiltViewModel()
     val goals by viewModel.goals.collectAsState()
 
@@ -31,16 +33,16 @@ fun GoalsScreen(onGoalClick: (Long) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(goals) { goal ->
-            val gradientBrush = gradientBrush()
+            val gradientBrush = gradientBrush() // Ensure you have this function available or use a default brush
             GoalCard(
-                goal = goal, onGoalClick = onGoalClick,
+                goal = goal,
+                onGoalClick = onGoalClick,
                 modifier = Modifier
                     .clip(shape = RoundedCornerShape(16.dp))
-                    .clickable{onGoalClick(goal.id)}
+                    .clickable { onGoalClick(goal.id) } // Now passes String ID
                     .border(2.dp, gradientBrush, shape = RoundedCornerShape(16.dp))
                     .background(color = Color.White.copy(alpha = 0.1f))
             )
-
         }
     }
 }
