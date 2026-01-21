@@ -63,45 +63,41 @@ def add_day_to_goal(goal_id: str, day_number: int, topic: str):
 
 def generate_timeline(goal_id: str, start_date: date, duration_days: int):
     """
-    Generates the timeline using Python to calculate specific dates.
-    This ensures Day 1 = Today, Day 2 = Tomorrow, etc.
+    Generates nodes. 
+    CRITICAL CHANGE: Only Day 1 gets a date. 
+    Future days are 'floating' (scheduled_date = null) until unlocked.
     """
-    # 1. Generate the Python List with Dates
     days_data = []
-    current_date = start_date
     
     for i in range(1, duration_days + 1):
+        # Only Day 1 gets a date (Today). Others wait.
+        scheduled = start_date.isoformat() if i == 1 else None
+        
         days_data.append({
             "day_number": i,
-            "date": current_date.isoformat(), # This saves "2024-01-19"
-            "topic": f"Day {i}: Pending Generation", 
+            "scheduled_date": scheduled, 
+            "topic": f"Pending Generation", 
             "is_locked": i > 1 
         })
-        current_date += timedelta(days=1)
 
-    # 2. The Query to Save to Neo4j
     query = """
     MATCH (g:Goal {id: $goal_id})
-    
     UNWIND $days_data as day_item
     
     CREATE (d:Day {
         day_number: day_item.day_number,
         topic: day_item.topic,
-        // Save the planned date so it shows on the calendar!
-        scheduled_date: day_item.date, 
+        scheduled_date: day_item.scheduled_date, 
         is_locked: day_item.is_locked,
         is_completed: false,
         sub_tasks: []
     })
-    
     MERGE (g)-[:HAS_DAY]->(d)
     
     WITH d
     ORDER BY d.day_number
     WITH collect(d) as days
     
-    // Link Day 1 -> Day 2 -> Day 3...
     FOREACH (i in range(0, size(days)-2) |
         FOREACH (d1 in [days[i]] |
             FOREACH (d2 in [days[i+1]] |
@@ -110,14 +106,10 @@ def generate_timeline(goal_id: str, start_date: date, duration_days: int):
     )
     RETURN size(days) as days_created
     """
-    
     with graph_db.get_session() as session:
         result = session.run(query, goal_id=goal_id, days_data=days_data)
         record = result.single()
-        if record:
-            print(f"DEBUG: Success! Created {record['days_created']} day nodes.")
-            return record["days_created"]
-        return 0
+        return record["days_created"] if record else 0
         
 
 def get_goal_roadmap(goal_id: str):
@@ -152,11 +144,29 @@ def get_goal_roadmap(goal_id: str):
 
 def get_all_goals(user_id: str):
     """
-    Fetches a list of all goals for the user (for the Goals Screen).
+    Returns goals with:
+    - calculated 'projected_end_date' (Today + Remaining Days)
+    - correct progress percentage
     """
     query = """
-    MATCH (u:User {id: $user_id})-[:HAS_GOAL]->(g:Goal)
-    RETURN g.id as id, g.title as title, g.category as category
+    MATCH (u:User {id: $user_id})-[r:HAS_GOAL]->(g:Goal)
+    OPTIONAL MATCH (g)-[:HAS_DAY]->(d:Day)
+    
+    WITH g, 
+         count(d) as total, 
+         sum(CASE WHEN d.is_completed THEN 1 ELSE 0 END) as done
+         
+    // Calculate Remaining Days
+    WITH g, total, done, (total - done) as remaining
+    
+    RETURN 
+        g.id as id, 
+        g.title as title, 
+        g.category as category, 
+        g.progress_percentage as progress,
+        toString(g.created_at) as created_at,
+        // Dynamic End Date: Today + Remaining Days
+        toString(date() + duration({days: remaining})) as projected_end_date
     """
     with graph_db.get_session() as session:
         result = session.run(query, user_id=user_id)
@@ -164,29 +174,30 @@ def get_all_goals(user_id: str):
 
 def mark_day_complete(goal_id: str, day_number: int):
     """
-    Marks a day as complete, saves the DATE it was finished, and unlocks the next day.
+    Marks the day as complete and stamps it with TODAY'S date.
+    This ensures it stays visible in 'History' for today.
     """
     query = """
     MATCH (g:Goal {id: $goal_id})-[:HAS_DAY]->(current:Day {day_number: $day_number})
     
-    // 📅 DATE FIX: Save the completion date (YYYY-MM-DD format)
+    // 1. Mark Done & Save Date (YYYY-MM-DD string format)
     SET current.is_completed = true, 
         current.completed_date = toString(date())
     
     WITH g, current
     
-    // Unlock next day
+    // 2. Unlock Next Day (But don't schedule it yet, the reader query handles that)
     OPTIONAL MATCH (current)-[:UNLOCKS]->(next_day:Day)
     SET next_day.is_locked = false
     
-    // Recalculate Progress
+    // 3. Recalculate Progress
     WITH g
     MATCH (g)-[:HAS_DAY]->(d:Day)
-    WITH g, count(d) as total_days, sum(CASE WHEN d.is_completed THEN 1 ELSE 0 END) as completed_days
+    WITH g, count(d) as total, sum(CASE WHEN d.is_completed THEN 1 ELSE 0 END) as done
     
-    SET g.completed_tasks = completed_days, 
-        g.progress_percentage = toInteger((completed_days / toFloat(total_days)) * 100)
-        
+    SET g.completed_tasks = done, 
+        g.progress_percentage = toInteger((done / toFloat(total)) * 100)
+    
     RETURN g.progress_percentage as progress
     """
     with graph_db.get_session() as session:
@@ -211,11 +222,8 @@ def update_day_content(goal_id: str, day_number: int, topic: str, sub_tasks: lis
 
 def get_tasks_for_date(user_id: str, target_date: str):
     """
-    Fetches tasks for a specific date (YYYY-MM-DD).
-    - Side Quests: Must match 'scheduled_date'.
-    - Goal Tasks: 
-        1. If COMPLETED: Must have been completed ON this date.
-        2. If ACTIVE: Must be the current step AND we are viewing Today.
+    Fetches tasks with PACING LOGIC.
+    Rule: If you finished a task TODAY, the next one appears TOMORROW.
     """
     query = """
     MATCH (u:User {id: $user_id})
@@ -223,7 +231,6 @@ def get_tasks_for_date(user_id: str, target_date: str):
     // 1. SIDE QUESTS (Strict Date Match)
     OPTIONAL MATCH (u)-[:HAS_TASK]->(t:Task)
     WHERE t.scheduled_date = $target_date
-    
     WITH u, collect(CASE WHEN t IS NULL THEN null ELSE {
         id: t.id,
         title: t.title,
@@ -232,34 +239,71 @@ def get_tasks_for_date(user_id: str, target_date: str):
         is_completed: coalesce(t.is_completed, false)
     } END) as side_quests
     
-    // 2. GOAL TASKS (Smart Logic)
-    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g:Goal)-[:HAS_DAY]->(d:Day)
-    WHERE 
-       // A. It was finished ON this specific day in the past
-       (d.completed_date = $target_date)
-       OR
-       // B. It is UNFINISHED, ACTIVE, and the user is looking at TODAY
-       ($target_date = toString(date()) 
-        AND coalesce(d.is_completed, false) = false 
-        AND coalesce(d.is_locked, false) = false)
+    // 2. GOAL TASKS (The Pacing Logic)
+    // Find the current active step (e.g., Day 4)
+    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g:Goal)-[:HAS_DAY]->(current:Day)
+    WHERE coalesce(current.is_completed, false) = false 
+      AND coalesce(current.is_locked, false) = false
 
-    WITH side_quests, collect(CASE WHEN d IS NULL THEN null ELSE {
-        id: toString(d.day_number), 
-        title: d.topic,
-        type: "GOAL",
-        goal_title: g.title,
-        goal_id: g.id,
-        is_completed: coalesce(d.is_completed, false)
-    } END) as goal_tasks
+    // Check the PREVIOUS day (e.g., Day 3) to see if it was done TODAY
+    OPTIONAL MATCH (g)-[:HAS_DAY]->(prev:Day)
+    WHERE prev.day_number = (current.day_number - 1)
     
-    RETURN side_quests + goal_tasks as all_tasks
+    WITH u, side_quests, g, current, prev,
+         duration.between(date(), date($target_date)).days as days_gap
+    
+    // CALCULATE SHIFT:
+    // If prev task was done TODAY, we shift everything by +1 day.
+    // So 'current' (Day 4) starts Tomorrow (gap=1), not Today (gap=0).
+    WITH u, side_quests, g, current, days_gap,
+         CASE WHEN prev.completed_date = toString(date()) THEN 1 ELSE 0 END as pace_shift
+         
+    // Calculate the Target Day Number based on the gap AND the shift
+    // Example: Viewing Today (gap=0). Shift=1. 
+    // effective_gap = 0 - 1 = -1. 
+    // We do NOT show Day 4 today.
+    WITH u, side_quests, g, current, (days_gap - pace_shift) as effective_gap
+    
+    OPTIONAL MATCH (g)-[:HAS_DAY]->(target_day:Day)
+    WHERE target_day.day_number = (current.day_number + effective_gap)
+    
+    WITH u, side_quests, collect(CASE 
+        // Only show if the math lands on a valid future/present node
+        WHEN target_day IS NOT NULL AND effective_gap >= 0 THEN {
+            id: toString(target_day.day_number),
+            title: target_day.topic,
+            type: "GOAL",
+            goal_title: g.title,
+            goal_id: g.id,
+            is_completed: false
+        } ELSE null 
+    END) as projected_tasks
+    
+    // 3. HISTORY CHECK (Show what was actually finished on this date)
+    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g_hist:Goal)-[:HAS_DAY]->(d_hist:Day)
+    WHERE d_hist.completed_date = $target_date
+    
+    WITH side_quests, projected_tasks, collect({
+        id: toString(d_hist.day_number),
+        title: d_hist.topic,
+        type: "GOAL",
+        goal_title: g_hist.title,
+        goal_id: g_hist.id,
+        is_completed: true
+    }) as history_tasks
+    
+    // Combine lists
+    RETURN side_quests + projected_tasks + history_tasks as all_tasks
     """
     with graph_db.get_session() as session:
         result = session.run(query, user_id=user_id, target_date=target_date)
         record = result.single()
         if not record: return []
-        return record["all_tasks"]
         
+        # Clean nulls
+        final_list = [x for x in record["all_tasks"] if x is not None]
+        return final_list
+            
 def create_side_quest(user_id: str, title: str, scheduled_date: str):
     """
     Creates a Side Quest linked to a specific date.

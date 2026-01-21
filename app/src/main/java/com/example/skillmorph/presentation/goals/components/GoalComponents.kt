@@ -5,6 +5,7 @@ import android.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PaintingStyle
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillmorph.data.local.entities.GoalEntity
+import com.example.skillmorph.data.remote.GoalDto
 import com.example.skillmorph.ui.theme.NeonBlue
 import com.example.skillmorph.ui.theme.NeonCyan
 import com.example.skillmorph.utils.glassEffect
@@ -47,30 +51,37 @@ import java.util.Locale
 
 @Composable
 fun GoalCard(
-    goal: GoalEntity,
+    goal: GoalDto, // <--- CHANGED TO GoalDto
     onGoalClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .glassEffect()
+            .glassEffect() // Ensure you have this extension or use .background
+            .clip(RoundedCornerShape(16.dp))
             .clickable { onGoalClick(goal.id) }
+            .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.3f), RoundedCornerShape(16.dp)) // Added border
             .padding(16.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            CircularProgressWithText(percentage = goal.progressPercentage)
+            // Use goal.progress directly
+            CircularProgressWithText(percentage = goal.progress)
+
             Spacer(modifier = Modifier.width(16.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = goal.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Row {
-                    DateColumn(label = "Start date", date = goal.startDate)
+                    // Pass the String dates directly
+                    DateColumn(label = "Started", dateString = goal.createdAt)
                     Spacer(modifier = Modifier.width(24.dp))
-                    DateColumn(label = "End date", date = goal.endDate)
+                    DateColumn(label = "Target", dateString = goal.endDate)
                 }
             }
         }
@@ -118,13 +129,25 @@ fun CircularProgressWithText(
     }
 }
 @Composable
-fun DateColumn(label: String, date: Long) {
-    val sdf = SimpleDateFormat("MMM dd", Locale.getDefault())
-    val formattedDate = sdf.format(Date(date))
+fun DateColumn(label: String, dateString: String?) {
+    // Helper to format "2024-01-20" -> "Jan 20"
+    val formattedDate = remember(dateString) {
+        try {
+            if (dateString == null) return@remember "N/A"
+            // Backend sends YYYY-MM-DD or ISO
+            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val formatter = SimpleDateFormat("MMM dd", Locale.getDefault())
+            val date = parser.parse(dateString.take(10)) // Take first 10 chars to be safe
+            date?.let { formatter.format(it) } ?: dateString
+        } catch (e: Exception) {
+            dateString ?: "N/A"
+        }
+    }
+
     Column {
         Text(text = label, color = Color.LightGray, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(4.dp))
-        NeonGlowText(text = formattedDate, color = NeonBlue)
+        NeonGlowText(text = formattedDate, color = Color(0xFF00E5FF)) // NeonCyan
     }
 }
 @Composable

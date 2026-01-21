@@ -1,6 +1,7 @@
 
 package com.example.skillmorph.presentation.tasks
 
+import android.R.attr.checked
 import android.util.Log
 import androidx.compose.material3.DatePickerDefaults.dateFormatter
 import androidx.lifecycle.ViewModel
@@ -112,38 +113,42 @@ class TasksViewModel @Inject constructor(
     }
 
     fun onTaskChecked(task: TaskDto, isChecked: Boolean) {
-        if (!isChecked) return // specific logic for unchecking if needed, for now let's focus on completing
-
-        // Optimistic Update: Update UI immediately so it feels fast
-        val updatedList = _uiState.value.tasks.map { item ->
+        if(!isChecked) return
+        // 1. OPTIMISTIC UPDATE: Update the UI INSTANTLY.
+        // We create a new list where the specific task is marked as completed.
+        // This prevents the "Disappearing Act" because we don't clear the list.
+        val currentList = _uiState.value.tasks
+        val updatedList = currentList.map { item ->
             if (item.id == task.id) {
-                // Mark as completed locally so it stays on screen
+                // Mark as completed so the UI updates (Green Check / Strike-through)
                 item.copy(isCompleted = true)
             } else {
                 item
             }
         }
+
+        // Apply the change to the screen immediately
         _uiState.value = _uiState.value.copy(tasks = updatedList)
 
+        // 2. BACKGROUND SYNC: Send the data to the server quietly.
         viewModelScope.launch {
             try {
                 if (task.type == "GOAL") {
-                    // It's a Goal Step: Call the complex Goal API
-                    // We use task.id as dayNumber because backend sent it as toString(day_number)
                     val dayNum = task.id?.toIntOrNull() ?: 1
                     val goalId = task.goalId ?: return@launch
-
                     api.completeGoalTask(goalId, dayNum)
 
-                    fetchTasksForDate(Date())
+                    // NOTE: We do NOT call fetchTasks() here immediately.
+                    // We let the user see their accomplishment.
+                    // The next day will naturally appear when they refresh or open the app tomorrow.
                 } else {
-                    // It's a Side Quest: Call the simple Task API
                     val taskId = task.id ?: return@launch
                     api.completeSideQuest(taskId)
                 }
             } catch (e: Exception) {
-                Log.e("TasksVM", "Failed to complete task: ${e.message}")
-                fetchTasksForDate(_uiState.value.selectedDate) // Revert UI on failure
+                Log.e("TasksVM", "Failed to sync: ${e.message}")
+                // Optional: Revert the change if the server completely fails
+                _uiState.value = _uiState.value.copy(tasks = currentList)
             }
         }
     }

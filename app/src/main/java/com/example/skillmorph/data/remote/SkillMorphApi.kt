@@ -24,7 +24,10 @@ data class ChatResponse(
 data class GoalDto(
     val id: String,
     val title: String,
-    val category: String
+    val category: String,
+    @SerializedName("progress") val progress: Int, // Maps to g.progress_percentage
+    @SerializedName("created_at") val createdAt: String?,
+    @SerializedName("projected_end_date") val endDate: String?
 )
 
 // The Root Response

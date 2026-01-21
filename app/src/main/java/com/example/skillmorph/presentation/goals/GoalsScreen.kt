@@ -33,15 +33,10 @@ fun GoalsScreen(onGoalClick: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         items(goals) { goal ->
-            val gradientBrush = gradientBrush() // Ensure you have this function available or use a default brush
+            // Pass the DTO directly
             GoalCard(
                 goal = goal,
-                onGoalClick = onGoalClick,
-                modifier = Modifier
-                    .clip(shape = RoundedCornerShape(16.dp))
-                    .clickable { onGoalClick(goal.id) } // Now passes String ID
-                    .border(2.dp, gradientBrush, shape = RoundedCornerShape(16.dp))
-                    .background(color = Color.White.copy(alpha = 0.1f))
+                onGoalClick = onGoalClick
             )
         }
     }
