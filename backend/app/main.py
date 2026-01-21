@@ -139,6 +139,8 @@ def get_roadmap_endpoint(goal_id: str):
         raise HTTPException(status_code=404, detail="Goal not found")
     return data
 
+
+
 @app.post("/goals/{goal_id}/days/{day_number}/complete")
 def complete_day_endpoint(
     goal_id: str, 
