@@ -134,8 +134,9 @@ class TasksViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (task.type == "GOAL") {
-                    val dayNum = task.id?.toIntOrNull() ?: 1
                     val goalId = task.goalId ?: return@launch
+                    // If it's null (old data), fallback to 1 to prevent crash.
+                    val dayNum = task.dayNumber ?: 1
                     api.completeGoalTask(goalId, dayNum)
 
                     // NOTE: We do NOT call fetchTasks() here immediately.

@@ -85,6 +85,7 @@ def generate_timeline(goal_id: str, start_date: date, duration_days: int):
     UNWIND $days_data as day_item
     
     CREATE (d:Day {
+        id: randomUUID(),
         day_number: day_item.day_number,
         topic: day_item.topic,
         scheduled_date: day_item.scheduled_date, 
@@ -220,89 +221,125 @@ def update_day_content(goal_id: str, day_number: int, topic: str, sub_tasks: lis
         session.run(query, goal_id=goal_id, day_number=day_number, topic=topic, sub_tasks=sub_tasks)
         print(f"✅ Updated Day {day_number} with: {topic}")
 
-def get_tasks_for_date(user_id: str, target_date: str):
+def get_tasks_for_date(user_id: str, target_date: str, today_date: str):
     """
-    Fetches tasks with PACING LOGIC.
-    Rule: If you finished a task TODAY, the next one appears TOMORROW.
+    Fetches tasks for a specific date with advanced Pacing Logic.
+    
+    ARGS:
+      - user_id: The user's UUID.
+      - target_date: The calendar date the user is looking at (e.g., "2026-01-25").
+      - today_date: The user's ACTUAL local date (e.g., "2026-01-21"). 
+        (Crucial for calculating the correct "Tomorrow" regardless of Server Time).
+
+    RETURNS:
+      - A mixed list of Side Quests (one-offs) and Main Quests (Goals).
     """
     query = """
     MATCH (u:User {id: $user_id})
     
-    // 1. SIDE QUESTS (Strict Date Match)
+    // ==========================================================
+    // 1. FETCH SIDE QUESTS
+    // ==========================================================
+    // Side quests are simple. They are locked to a specific calendar date.
+    // We use OPTIONAL MATCH so the query doesn't fail if there are no side quests.
     OPTIONAL MATCH (u)-[:HAS_TASK]->(t:Task)
     WHERE t.scheduled_date = $target_date
+    
+    // Collect them into a list. If null, we create an empty list.
     WITH u, collect(CASE WHEN t IS NULL THEN null ELSE {
         id: t.id,
         title: t.title,
-        type: "SIDE_QUEST",
+        type: "SIDE_QUEST",       // Frontend uses this to pick the color (e.g., Yellow)
         goal_title: "Side Quest",
         is_completed: coalesce(t.is_completed, false)
     } END) as side_quests
     
-    // 2. GOAL TASKS (The Pacing Logic)
-    // Find the current active step (e.g., Day 4)
+    // ==========================================================
+    // 2. FETCH HISTORY (Completed Main Quests)
+    // ==========================================================
+    // If the user is looking at a past date, show what they actually finished that day.
+    // We look for Days connected to Goals that have a 'completed_date' matching the target.
+    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g_hist:Goal)-[:HAS_DAY]->(d_hist:Day)
+    WHERE d_hist.completed_date = $target_date
+    
+    WITH u, side_quests, collect(CASE WHEN d_hist IS NULL THEN null ELSE {
+        id: d_hist.id,             // CRITICAL FIX: Use UUID, not day_number, to prevent duplicate key crashes
+        day_number: d_hist.day_number,
+        title: d_hist.topic,
+        type: "GOAL",              // Frontend uses this to pick the color (e.g., Blue/Red)
+        goal_title: g_hist.title,
+        goal_id: g_hist.id,
+        is_completed: true
+    } END) as history_tasks
+    
+    // ==========================================================
+    // 3. CALCULATE ACTIVE TASKS (The Pacing Logic)
+    // ==========================================================
+    // This is the hard part. We need to figure out "What step is next?" 
+    // based on where they are right now.
+    
+    // Step A: Find the user's current position (The unfinished day)
     OPTIONAL MATCH (u)-[:HAS_GOAL]->(g:Goal)-[:HAS_DAY]->(current:Day)
     WHERE coalesce(current.is_completed, false) = false 
       AND coalesce(current.is_locked, false) = false
 
-    // Check the PREVIOUS day (e.g., Day 3) to see if it was done TODAY
+    // Step B: Check the PREVIOUS day.
+    // Why? If they finished Day 3 TODAY, then Day 4 should usually appear TOMORROW, not today.
     OPTIONAL MATCH (g)-[:HAS_DAY]->(prev:Day)
     WHERE prev.day_number = (current.day_number - 1)
     
-    WITH u, side_quests, g, current, prev,
-         duration.between(date(), date($target_date)).days as days_gap
+    // Step C: Calculate the Time Gap
+    // We compare the User's "Today" vs the "Target Date" they are viewing.
+    // Note: We use date($today_date) to respect the User's Timezone, not Server Time.
+    WITH u, side_quests, history_tasks, g, current, prev,
+         duration.between(date($today_date), date($target_date)).days as days_gap
     
-    // CALCULATE SHIFT:
-    // If prev task was done TODAY, we shift everything by +1 day.
-    // So 'current' (Day 4) starts Tomorrow (gap=1), not Today (gap=0).
-    WITH u, side_quests, g, current, days_gap,
-         CASE WHEN prev.completed_date = toString(date()) THEN 1 ELSE 0 END as pace_shift
+    // Step D: Calculate the "Pacing Shift"
+    // If the previous task was finished TODAY, we shift the schedule by +1 day.
+    // This creates the "cooldown" effect so they don't burn out.
+    WITH u, side_quests, history_tasks, g, current, days_gap,
+         CASE WHEN prev.completed_date = $today_date THEN 1 ELSE 0 END as shift
          
-    // Calculate the Target Day Number based on the gap AND the shift
-    // Example: Viewing Today (gap=0). Shift=1. 
-    // effective_gap = 0 - 1 = -1. 
-    // We do NOT show Day 4 today.
-    WITH u, side_quests, g, current, (days_gap - pace_shift) as effective_gap
+    // Step E: Determine the Target Day Number
+    // If viewing Today (gap=0) and Shift=1, effective_gap becomes -1 (No task shown).
+    // If viewing Tomorrow (gap=1) and Shift=1, effective_gap becomes 0 (Show current task).
+    WITH u, side_quests, history_tasks, (days_gap - shift) as effective_gap, g, current
     
+    // Step F: Fetch the actual Day Node for that calculated number
     OPTIONAL MATCH (g)-[:HAS_DAY]->(target_day:Day)
     WHERE target_day.day_number = (current.day_number + effective_gap)
+      AND target_day.is_completed = false // Only show if it's not already done
+      AND effective_gap >= 0              // Don't show tasks in the past (negative gap)
     
-    WITH u, side_quests, collect(CASE 
-        // Only show if the math lands on a valid future/present node
-        WHEN target_day IS NOT NULL AND effective_gap >= 0 THEN {
-            id: toString(target_day.day_number),
+    WITH side_quests, history_tasks, collect(CASE 
+        WHEN target_day IS NOT NULL THEN {
+            id: target_day.id,             // STABILITY FIX: UUID prevents React List crashes
+            day_number: target_day.day_number,
             title: target_day.topic,
             type: "GOAL",
             goal_title: g.title,
             goal_id: g.id,
             is_completed: false
         } ELSE null 
-    END) as projected_tasks
+    END) as active_tasks
     
-    // 3. HISTORY CHECK (Show what was actually finished on this date)
-    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g_hist:Goal)-[:HAS_DAY]->(d_hist:Day)
-    WHERE d_hist.completed_date = $target_date
-    
-    WITH side_quests, projected_tasks, collect({
-        id: toString(d_hist.day_number),
-        title: d_hist.topic,
-        type: "GOAL",
-        goal_title: g_hist.title,
-        goal_id: g_hist.id,
-        is_completed: true
-    }) as history_tasks
-    
-    // Combine lists
-    RETURN side_quests + projected_tasks + history_tasks as all_tasks
+    // ==========================================================
+    // 4. MERGE & RETURN
+    // ==========================================================
+    // Combine all three lists into one big array for the frontend.
+    RETURN side_quests + history_tasks + active_tasks as all_tasks
     """
+    
     with graph_db.get_session() as session:
-        result = session.run(query, user_id=user_id, target_date=target_date)
+        # We pass 'today_date' explicitly to ensure the pacing math works for the USER'S time, not the server's.
+        result = session.run(query, user_id=user_id, target_date=target_date, today_date=today_date)
         record = result.single()
+        
         if not record: return []
         
-        # Clean nulls
-        final_list = [x for x in record["all_tasks"] if x is not None]
-        return final_list
+        # Python-side cleanup to remove any potential None values from the list
+        return [x for x in record["all_tasks"] if x is not None]
+    
             
 def create_side_quest(user_id: str, title: str, scheduled_date: str):
     """

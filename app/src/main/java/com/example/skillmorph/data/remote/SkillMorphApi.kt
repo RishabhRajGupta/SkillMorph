@@ -51,11 +51,18 @@ data class ProgressResponse(
 )
 
 data class TaskDto(
+    // This is now the UUID (e.g., "550e8400-e29b-41d4-a716-446655440000")
     val id: String? = "",
-    val title: String? = "Untitled Task",
+
+    // 🟢 NEW: The specific day index (e.g., 5) needed for the API call
+    @SerializedName("day_number")
+    val dayNumber: Int? = null,
+
+    val title: String? = "Untitled",
     val type: String? = "SIDE_QUEST",
+
     @SerializedName("goal_title") val goalTitle: String? = null,
-    @SerializedName("goal_id") val goalId: String?= null,
+    @SerializedName("goal_id") val goalId: String? = null,
     @SerializedName("is_completed") val isCompleted: Boolean? = false
 )
 

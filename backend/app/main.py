@@ -1,3 +1,4 @@
+import datetime
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from contextlib import asynccontextmanager
 from app.core.config import settings
@@ -60,12 +61,24 @@ def create_goal_endpoint(goal: GoalCreate):
     # For now, we hardcode a user Id since we don't have login yet
     user_id = "test_user_123"
     result = create_goal_in_db(user_id, goal)
-    return {"message": "Goal Created", "data": result}
+    ai_message = (
+        f"That sounds like a fantastic challenge! I've created the goal '{goal.title}' "
+        f"for you. It's a {goal.days}-day journey, and I've already set up the first steps. "
+        f"Good luck!"
+    )
+    return {"message": ai_message, "data": result}
 
 @app.post("/goals/{goal_id}/timeline")
 def create_timeline_endpoint(goal_id: str, days: int):
     # Generates a timeline starting today
     count = generate_timeline(goal_id, date.today(), days)
+
+    ai_message = (
+        f"That sounds like a fantastic challenge! I've created the goal '{goal.title}' "
+        f"for you. It's a {goal.days}-day journey, and I've already set up the first steps. "
+        f"Good luck!"
+    )
+    
     return {"message": "Timeline Generated", "days_created": count}
 
 @app.post("/memory/")
@@ -180,7 +193,8 @@ def complete_day_endpoint(goal_id: str, day_number: int, background_tasks: Backg
 # Tasks
 @app.get("/tasks/today")
 def get_tasks_endpoint(date: str, user_id: str = "test_user_123"):
-    return get_tasks_for_date(user_id, date)
+    today_str = datetime.date.today().isoformat()
+    return get_tasks_for_date(user_id, date, today_str)
 
 class TaskCreate(BaseModel):
     title: str

@@ -1,5 +1,6 @@
 package com.example.skillmorph.presentation.tasks
 
+import android.R.attr.text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -94,9 +95,13 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                     item { Text("MAIN QUESTS", color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold, fontSize = 12.sp) }
 
                     // USE TaskCard HERE
-                    items(goalTasks) { task ->
+                    items(items = goalTasks, key = { task -> task.id ?: java.util.UUID.randomUUID().toString() }) { task ->
                         TaskCard(task = task, isMain = true, onChecked = { viewModel.onTaskChecked(task, true)})
                     }
+                }
+                else{
+                    item { Text("MAIN QUESTS", color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                    item { Text(text = "Create Goals to add Main Quest", color = Color.Gray, fontSize = 12.sp) }
                 }
 
                 // SECTION 2: SIDE QUESTS
@@ -104,9 +109,13 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                     item { Text("SIDE QUESTS", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp) }
 
                     // USE TaskCard HERE TOO
-                    items(sideQuests) { task ->
+                    items(items = sideQuests, key = { it.id ?: it.hashCode()}) { task ->
                         TaskCard(task = task, isMain = false, onChecked = { viewModel.onTaskChecked(task, true) })
                     }
+                }
+                else{
+                    item { Text("SIDE QUESTS", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                    item { Text(text = "Add Your task to add Side Quest", color = Color.Gray, fontSize = 12.sp) }
                 }
             }
         }

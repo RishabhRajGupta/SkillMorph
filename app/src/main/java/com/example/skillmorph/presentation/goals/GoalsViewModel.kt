@@ -2,6 +2,8 @@
 package com.example.skillmorph.presentation.goals
 
 import android.util.Log
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillmorph.data.local.entities.GoalEntity
@@ -23,11 +25,7 @@ class GoalsViewModel @Inject constructor(
     private val _goals = MutableStateFlow<List<GoalDto>>(emptyList())
     val goals = _goals.asStateFlow()
 
-    init {
-        fetchGoals()
-    }
-
-    private fun fetchGoals() {
+    fun fetchGoals() {
         viewModelScope.launch {
             try {
                 // Direct assignment! No more mapping needed.
