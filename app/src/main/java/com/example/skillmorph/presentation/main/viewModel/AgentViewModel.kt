@@ -4,11 +4,13 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillmorph.ChatMessage
+import com.example.skillmorph.data.local.entities.ChatDao
+import com.example.skillmorph.data.local.entities.ChatMessageEntity
 import com.example.skillmorph.data.remote.ChatRequest
 import com.example.skillmorph.data.remote.SessionResponse
 import com.example.skillmorph.data.remote.SkillMorphApi
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -18,10 +20,18 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlin.collections.toMutableList
 
+// UI Model
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean,
+    val isThinking: Boolean = false
+)
+
 @HiltViewModel
 class AgentViewModel @Inject constructor(
     private val api: SkillMorphApi,
-    private val sharedPrefs: SharedPreferences
+    private val sharedPrefs: SharedPreferences,
+    private val chatDao: ChatDao
 ) : ViewModel() {
 
     // --- STATE ---
@@ -42,6 +52,9 @@ class AgentViewModel @Inject constructor(
     private val _ttsText = MutableStateFlow<String?>(null)
     val ttsText = _ttsText.asStateFlow()
 
+    // 🔴 FIX: Job variable declared correctly
+    private var messageCollectionJob: Job? = null
+
     // --- INITIALIZATION ---
     init {
         initializeSession()
@@ -49,64 +62,125 @@ class AgentViewModel @Inject constructor(
 
     private fun initializeSession() {
         viewModelScope.launch {
+            var sessionId: String? = null
+            var isOffline = false
+
+            // 1. Calculate Virtual Date
+            val now = LocalDateTime.now()
+            val cutoff = now.withHour(3).withMinute(30)
+            val virtualDate = if (now.isBefore(cutoff)) {
+                now.minusDays(1).toLocalDate().toString()
+            } else {
+                now.toLocalDate().toString()
+            }
+
+            Log.d("AgentVM", "Initializing for: $virtualDate")
+
+            // 2. Try Network Handshake
             try {
-                // 1. Calculate Virtual Date
-                val now = LocalDateTime.now()
-                val cutoff = now.withHour(3).withMinute(30)
-                val virtualDate = if (now.isBefore(cutoff)) {
-                    now.minusDays(1).toLocalDate().toString()
+                val sessionData = api.getOrCreateDailySession()
+                sessionId = sessionData.sessionId
+                _currentSessionId.value = sessionData.sessionId
+
+                // Load History only if we succeeded
+                val history = api.getSessionHistory(sessionData.sessionId)
+
+                // If we have history, show it. If empty, maybe trigger briefing.
+                // Note: The DAO observation below will eventually overwrite this,
+                // but we keep your original logic here.
+                if (history.isNotEmpty()) {
+                    _messages.value = history.map { ChatMessage(it.text, it.isUser) }
                 } else {
-                    now.toLocalDate().toString()
+                    triggerDailyBriefing(virtualDate)
                 }
 
-                Log.d("AgentVM", "Initializing for: $virtualDate")
-
-                // 2. Try to Get Session from Backend
-                try {
-                    val sessionData = api.getOrCreateDailySession()
-                    _currentSessionId.value = sessionData.sessionId
-
-                    // Load History only if we succeeded
-                    val history = api.getSessionHistory(sessionData.sessionId)
-                    if (history.isNotEmpty()) {
-                        _messages.value = history.map { ChatMessage(it.text, it.isUser) }
-                    } else {
-                        triggerDailyBriefing(virtualDate)
-                    }
-
-                    // Load Sidebar
-                    _pastSessions.value = api.getChatSessions()
-
-                } catch (e: Exception) {
-                    Log.e("AgentVM", "Backend Handshake Failed: ${e.message}")
-                    throw e // Re-throw to trigger the fallback in outer catch
-                }
+                // Load Sidebar
+                _pastSessions.value = api.getChatSessions()
 
             } catch (e: Exception) {
-                // 🔴 THE FIX: FALLBACK MODE
-                // If backend fails, generate a LOCAL ID so the user isn't blocked.
-                Log.e("AgentVM", "Entering Offline Fallback Mode")
+                Log.e("AgentVM", "Backend Handshake Failed: ${e.message}")
+                // Fallback to local DB
+                isOffline = true
+                sessionId = chatDao.getLastSessionId() ?: UUID.randomUUID().toString()
+            }
 
-                if (_currentSessionId.value == null) {
-                    _currentSessionId.value = UUID.randomUUID().toString()
+            // 3. Set Session ID (Guaranteed to be not null now)
+            _currentSessionId.value = sessionId
+
+            // 4. Start Observing DB (Instant UI Load)
+            // 🔴 FIX: Added !! because we handled the null case above
+            startObservingMessages(sessionId!!)
+
+            // 5. If Online, Sync History & Sidebar
+            if (!isOffline) {
+                // 🔴 FIX: Added !! to fix 'String? vs String' mismatch
+                syncSessionHistory(sessionId!!)
+
+                try {
+                    _pastSessions.value = api.getChatSessions()
+                } catch (e: Exception) {
+                    Log.e("AgentVM", "Failed to load sidebar: ${e.message}")
                 }
-
-                _messages.value = listOf(
-                    ChatMessage("⚠️ Offline Mode: I couldn't sync history, but you can still try to chat.", isUser = false)
-                )
+            } else {
+                // If offline and new session, maybe show a welcome message?
+                if (_messages.value.isEmpty()) {
+                    // triggerDailyBriefing(virtualDate) // Optional
+                }
             }
         }
     }
 
+    private fun startObservingMessages(sessionId: String) {
+        // Stop observing previous session
+        messageCollectionJob?.cancel()
+
+        messageCollectionJob = viewModelScope.launch {
+            // This Flow updates the UI automatically whenever the DB changes
+            chatDao.getMessagesFlow(sessionId).collect { entities ->
+                // Map Entity -> UI Model
+                _messages.value = entities.map { entity ->
+                    ChatMessage(
+                        text = entity.text,
+                        isUser = entity.isUser
+                    )
+                }
+            }
+        }
+    }
+
+    // Helper: Fetches from API and saves to DB (Room handles the UI update)
+    private fun syncSessionHistory(sessionId: String) {
+        viewModelScope.launch {
+            try {
+                // Fetch from Network
+                val history = api.getSessionHistory(sessionId)
+
+                // 🔴 FIX: Correctly map Network Model to Database Entity
+                val entities = history.map {
+                    ChatMessageEntity(
+                        sessionId = sessionId,
+                        text = it.text,
+                        isUser = it.isUser,
+                        timestamp = System.currentTimeMillis()
+                    )
+                }
+
+                // Save to DB (UI updates automatically via startObservingMessages)
+                chatDao.insertMessages(entities)
+
+            } catch (e: Exception) {
+                Log.e("AgentVM", "Sync failed: ${e.message}")
+            }
+        }
+    }
 
     // --- CHAT LOGIC ---
 
     fun sendMessage(text: String, isVoice: Boolean) {
-        // 1. Get the Active Session ID (Don't generate a random UUID here!)
-        // It should have been set by initializeSession()
+        // 1. Get the Active Session ID
         val sessionId = _currentSessionId.value ?: return
 
-        // Optimistic Update (UI)
+        // Optimistic Update (UI) - Keeping your manual update logic
         val currentList = _messages.value.toMutableList()
         currentList.add(ChatMessage(text, isUser = true))
         _messages.value = currentList
@@ -114,56 +188,80 @@ class AgentViewModel @Inject constructor(
         _isAgentThinking.value = true
 
         viewModelScope.launch {
+            // 1. Save User Message to DB
+            val userMsg = ChatMessageEntity(
+                sessionId = sessionId,
+                text = text,
+                isUser = true,
+                timestamp = System.currentTimeMillis()
+            )
+            chatDao.insertMessage(userMsg)
+
             try {
                 // 2. Network Call
                 val apiResult = api.chat(
                     ChatRequest(
                         message = text,
                         isVoiceMode = isVoice,
-                        sessionId = sessionId // Sending the ID
+                        sessionId = sessionId
                     )
                 )
 
+                // 3. Clean JSON (Safety Net)
                 var displayMessage = apiResult.response
                 var spokenMessage = apiResult.response
 
-                try{
+                try {
                     val cleanJson = apiResult.response
-                        .replace("```json","")
-                        .replace("```","")
+                        .replace("```json", "")
+                        .replace("```", "")
                         .trim()
 
-                    if(cleanJson.startsWith("{")){
+                    if (cleanJson.startsWith("{")) {
                         val jsonObject = JSONObject(cleanJson)
-                        if(jsonObject.has("spoken_text")){
-                            spokenMessage = jsonObject.getString("spoken_text")
-                        }
-                        if(jsonObject.has("display_text")){
-                            displayMessage = jsonObject.getString("display_text")
-                        }
+                        if (jsonObject.has("display_text")) displayMessage = jsonObject.getString("display_text")
+                        if (jsonObject.has("spoken_text")) spokenMessage = jsonObject.getString("spoken_text")
                     }
-                } catch (e: Exception){
-                    // If not Json then stick to raw text
-                    Log.d("AgentVM", "Response was not JSON, using raw text.")
+                } catch (e: Exception) {
+                    // Not JSON, ignore
                 }
-                // 3. Handle Success
+
+                // 4. Save AI Message to DB
+                val aiMsg = ChatMessageEntity(
+                    sessionId = sessionId,
+                    text = displayMessage,
+                    isUser = false,
+                    timestamp = System.currentTimeMillis()
+                )
+                chatDao.insertMessage(aiMsg)
+
                 _isAgentThinking.value = false
+
+                // Manual Update for UI (Keeping your original logic)
                 val updatedList = _messages.value.toMutableList()
                 updatedList.add(ChatMessage(displayMessage, isUser = false))
                 _messages.value = updatedList
 
+                // 5. Trigger TTS
                 if (isVoice || apiResult.mode == "voice") {
                     _ttsText.value = spokenMessage
                 }
 
             } catch (e: Exception) {
-                // 4. Handle Failure (Keep user message, show error)
                 _isAgentThinking.value = false
                 Log.e("AgentVM", "Send Failed: ${e.message}")
 
                 val errorList = _messages.value.toMutableList()
                 errorList.add(ChatMessage("❌ Failed to send. Check Server.", isUser = false))
                 _messages.value = errorList
+
+                // Optional: Insert error message into DB so user sees it
+                chatDao.insertMessage(ChatMessageEntity(
+                    sessionId = sessionId,
+                    text = "❌ Failed to send. Check internet.",
+                    isUser = false,
+                    timestamp = System.currentTimeMillis()
+                ))
             }
         }
     }
@@ -216,8 +314,13 @@ class AgentViewModel @Inject constructor(
             // 1. Set the active session ID
             _currentSessionId.value = sessionId
 
+            // Start observing Local Data
+            startObservingMessages(sessionId)
+
+            // Sync with Network
+            syncSessionHistory(sessionId)
+
             // 2. Clear current messages (Instant UI feedback)
-            // This prevents seeing "Today's" messages while "Yesterday" loads
             _messages.value = emptyList()
 
             try {

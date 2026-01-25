@@ -21,14 +21,21 @@ abstract class AppDatabase : RoomDatabase() {
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        return Room.databaseBuilder(context, AppDatabase::class.java, "skillmorph_db")
-            .fallbackToDestructiveMigration() // 🟢 ADD THIS: Prevents crash on schema change
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            "skillmorph_db"
+        )
+            .fallbackToDestructiveMigration() // Useful during dev if you change schema
             .build()
     }
 
     @Provides
-    fun provideChatDao(db: AppDatabase): ChatDao = db.chatDao()
+    fun provideChatDao(db: AppDatabase): ChatDao {
+        return db.chatDao()
+    }
 }

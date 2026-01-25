@@ -8,14 +8,19 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChatDao {
-    // Get messages for a specific day/session
+    // 1. Observe messages (Updates UI automatically)
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
-    fun getMessagesForSession(sessionId: String): Flow<List<ChatMessageEntity>>
+    fun getMessagesFlow(sessionId: String): Flow<List<ChatMessageEntity>>
 
+    // 2. Insert one (for sending)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(msg: ChatMessageEntity)
 
-    // Clear old cache if needed
-    @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
-    suspend fun clearSession(sessionId: String)
+    // 3. Bulk Insert (for syncing history)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessages(messages: List<ChatMessageEntity>)
+
+    // 4. Get latest session ID (Useful for offline startup)
+    @Query("SELECT sessionId FROM chat_messages ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastSessionId(): String?
 }

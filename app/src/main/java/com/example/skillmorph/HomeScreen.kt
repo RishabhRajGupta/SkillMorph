@@ -61,9 +61,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
+import com.example.skillmorph.presentation.main.viewModel.ChatMessage
 import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
@@ -104,10 +103,6 @@ fun HomeScreen(viewModel: AgentViewModel) {
         }
     }
 }
-
-// This is just a placeholder to make the file compile.
-// You should have your actual ViewModel defined elsewhere.
-// class AgentViewModel : ViewModel() { ... }
 
 // ... The contents of GlassInputModeChip and ChipOption composables remain unchanged ...
 // NOTE: I've moved them here for completeness in a single file, you can keep them separate.
