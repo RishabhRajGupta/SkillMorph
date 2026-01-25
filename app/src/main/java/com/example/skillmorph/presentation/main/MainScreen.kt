@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,21 +34,30 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -66,7 +78,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.skillmorph.Agent
+import com.example.skillmorph.HomeScreen
 import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
 import com.example.skillmorph.presentation.goaldetail.MetroMapViewModel
 import com.example.skillmorph.presentation.goals.GoalsScreen
@@ -76,47 +88,103 @@ import com.example.skillmorph.ui.theme.NeonCyan
 import com.example.skillmorph.ui.theme.TransparentWhite
 import com.example.skillmorph.utils.glassEffect
 import com.example.skillmorph.presentation.goaldetail.MetroMapTimeline
+import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
 import com.example.skillmorph.presentation.tasks.TasksScreen
+import kotlinx.coroutines.launch
 
 
 @Composable
-fun MainScreen(appNavController: NavController) {
+fun MainScreen(
+    appNavController: NavController,
+    // We get the VM here to populate the sidebar list
+    agentViewModel: AgentViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
-    var isVoiceMode by remember { mutableStateOf(true) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                streakCount = 10,
-                isStreakActive = true,
-                hasNotification = true,
-                onMenuClick = { /* Handle menu click */ },
-                onNotificationClick = { /* Handle notification click */ }
-            )
-        },
-        bottomBar = {
-            // Our custom glassy Bottom Navigation Bar
-            BottomNavBar(navController = navController)
-        },
-        // Set container color to transparent to see the theme's gradient background
-        containerColor = Color.Transparent
-    ) { innerPadding ->
-        // NavHost for the main screens (Home, Goals, etc.)
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Goals.route) {
-                GoalsScreen(onGoalClick = { goalId ->
-                    // Navigate to the metro map screen with the goal's ID
-                    appNavController.navigate("metro_map_screen/$goalId")
-                })
+    // 1. Drawer State & Data
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val pastSessions by agentViewModel.pastSessions.collectAsState()
+
+    // 2. ROOT DRAWER (Wraps the whole screen)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color.Black.copy(alpha = 0.9f),
+                drawerContentColor = Color.White
+            ) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    "Time Travel",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF00E5FF)
+                )
+                Divider(color = Color.Gray.copy(alpha = 0.3f))
+
+                // The History List
+                LazyColumn {
+                    items(pastSessions) { session ->
+                        NavigationDrawerItem(
+                            label = { Text("${session.date} - ${session.title}") },
+                            selected = false,
+                            onClick = {
+                                agentViewModel.loadSession(session.sessionId) // Load Chat
+                                scope.launch { drawerState.close() }
+
+                                // Optional: If user is on Goals/Tasks, jump to Home/Agent to see the chat
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(navController.graph.findStartDestination().id)
+                                }
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                unselectedTextColor = Color.White
+                            )
+                        )
+                    }
+                }
             }
-            composable(Screen.Tasks.route) { TasksScreen() }
-            composable(Screen.Profile.route) { ProfileScreen() }
+        }
+    ) {
+        // 3. YOUR EXISTING SCAFFOLD (Now inside the drawer)
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    streakCount = 10,
+                    isStreakActive = true,
+                    hasNotification = true,
+                    // 🟢 CONNECTED: Clicking Menu opens the Drawer
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                    onNotificationClick = { /* ... */ }
+                )
+            },
+            bottomBar = {
+                BottomNavBar(navController = navController)
+            },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
 
+            // 4. CONTENT AREA
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Home.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                // Pass the SHARED ViewModel so the Agent screen shows the loaded session
+                composable(Screen.Home.route) {
+                    HomeScreen(agentViewModel)
+                }
+
+                composable(Screen.Goals.route) {
+                    GoalsScreen(onGoalClick = { goalId ->
+                        appNavController.navigate("metro_map_screen/$goalId")
+                    })
+                }
+                composable(Screen.Tasks.route) { TasksScreen() }
+                composable(Screen.Profile.route) { ProfileScreen() }
+            }
         }
     }
 }
@@ -394,17 +462,6 @@ fun BottomNavBar(navController: NavController) {
                 )
             )
         }
-    }
-}
-
-// --- Dummy Screens (to be replaced later) ---
-
-@Composable
-fun HomeScreen() {
-    Box(modifier = Modifier.fillMaxSize()) {
-        // ... Background & Content ...
-
-        Agent()
     }
 }
 

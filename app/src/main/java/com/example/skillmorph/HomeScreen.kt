@@ -62,13 +62,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
-import com.example.skillmorph.presentation.main.viewModel.ChatMessage
 import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
-fun Agent() {
-    val viewModel: AgentViewModel = hiltViewModel()
+fun HomeScreen(viewModel: AgentViewModel) {
     var isVoiceMode by remember { mutableStateOf(true) }
 
     // Use a Box to layer everything
@@ -456,6 +455,8 @@ fun AgentChat(viewModel: AgentViewModel) {
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+
 
     // Auto-scroll when messages change
     LaunchedEffect(messages.size) {

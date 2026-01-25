@@ -5,39 +5,64 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillmorph.presentation.auth.AuthScreen
-import com.example.skillmorph.presentation.auth.AuthViewModel
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.example.skillmorph.presentation.main.DailyBriefingWorker
 import com.example.skillmorph.presentation.navigation.AppNavigation
 import com.example.skillmorph.ui.theme.SkillMorphTheme
-import com.example.skillmorph.ui.theme.TransparentBlack
-import com.example.skillmorph.utils.glassEffect
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        scheduleDailyBriefing()
         setContent {
             SkillMorphTheme {
                 AppNavigation()
             }
         }
+    }
+    private fun scheduleDailyBriefing() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        // Create the request
+        val dailyWork = PeriodicWorkRequestBuilder<DailyBriefingWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .setInitialDelay(calculateDelayFor6AM(), TimeUnit.MILLISECONDS)
+            .addTag("daily_briefing") // Useful for debugging
+            .build()
+
+        // Enqueue it
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "DailyBriefing",
+            ExistingPeriodicWorkPolicy.KEEP, // KEEP = If already scheduled, don't replace it
+            dailyWork
+        )
+    }
+
+    // Helper: How many milliseconds until the next 6:00 AM?
+    private fun calculateDelayFor6AM(): Long {
+        val now = LocalDateTime.now()
+        var target = now.withHour(6).withMinute(0).withSecond(0).withNano(0)
+
+        // If it is currently 8 AM, the next 6 AM is tomorrow.
+        if (now.isAfter(target)) {
+            target = target.plusDays(1)
+        }
+
+        return ChronoUnit.MILLIS.between(now, target)
     }
 }
 

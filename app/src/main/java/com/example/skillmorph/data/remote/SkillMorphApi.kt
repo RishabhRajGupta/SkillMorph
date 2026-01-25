@@ -10,9 +10,17 @@ import retrofit2.http.Path
 // 1. The Request Body (Matches Python 'ChatRequest')
 data class ChatRequest(
     val message: String,
-    val is_voice_mode: Boolean = false,
-    val user_id: String = "test_user_123",
-    val session_id: String
+
+    @SerializedName("is_voice_mode")
+    val isVoiceMode: Boolean = false,
+
+    @SerializedName("session_id")
+    val sessionId: String,
+
+    // We keep this for compatibility, though the AuthInterceptor
+    // handles the real ID via Headers.
+    @SerializedName("user_id")
+    val userId: String = "test_user_123"
 )
 
 // 2. The Response Body (Matches Python output)
@@ -48,6 +56,20 @@ data class DayNodeDto(
 data class ProgressResponse(
     val status: String,
     val new_progress: Int
+)
+
+// Chat session
+data class SessionResponse(
+    @SerializedName("session_id")
+    val sessionId: String, // Matches "session_id" from JSON
+    val title: String,
+    val date: String
+)
+
+data class HistoryMessage(
+    val text: String,
+    val isUser: Boolean,
+    val timestamp: String? = null
 )
 
 data class TaskDto(
@@ -92,4 +114,14 @@ interface SkillMorphApi {
 
     @POST("/tasks/{id}/complete")
     suspend fun completeSideQuest(@Path("id") taskId: String): Any
+
+    @POST("/chat/sessions/today") // You need to add this endpoint to main.py if not there
+    suspend fun getOrCreateDailySession(): SessionResponse
+
+    @GET("/chat/sessions/{session_id}/history")
+    suspend fun getSessionHistory(@Path("session_id") sessionId: String): List<HistoryMessage>
+
+    // 3. Get Sidebar List
+    @GET("/chat/sessions")
+    suspend fun getChatSessions(): List<SessionResponse>
 }

@@ -9,6 +9,7 @@ class AgentState(TypedDict):
     
     # Context flags
     is_voice_mode: bool = False
+    user_id: str
     user_mood: str = "neutral"
     
     # Data slots (Filled by the extractors)

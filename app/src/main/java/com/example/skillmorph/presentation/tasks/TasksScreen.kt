@@ -1,6 +1,5 @@
 package com.example.skillmorph.presentation.tasks
 
-import android.R.attr.text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -22,13 +21,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.skillmorph.data.remote.TaskDto
+import java.text.SimpleDateFormat
+import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 @Composable
 fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
@@ -59,6 +60,10 @@ fun TasksScreen(viewModel: TasksViewModel = hiltViewModel()) {
                 showAddTaskDialog = false
             }
         )
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchTasksForDate(Date())
     }
 
     Scaffold(

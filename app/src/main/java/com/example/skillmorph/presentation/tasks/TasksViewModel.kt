@@ -65,7 +65,7 @@ class TasksViewModel @Inject constructor(
     }
 
     // 1. Fetch based on the SELECTED date
-    private fun fetchTasksForDate(date: Date) {
+    fun fetchTasksForDate(date: Date) {
         viewModelScope.launch {
             try {
                 // Use SimpleDateFormat to format the date for the API
