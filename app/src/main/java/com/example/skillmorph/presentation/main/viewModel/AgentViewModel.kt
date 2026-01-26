@@ -76,55 +76,47 @@ class AgentViewModel @Inject constructor(
 
             Log.d("AgentVM", "Initializing for: $virtualDate")
 
-            // 2. Try Network Handshake
+            // 2. Try Network Handshake (ONLY GET ID)
             try {
+                // We only fetch the ID here. Data fetching happens in Step 4.
                 val sessionData = api.getOrCreateDailySession()
                 sessionId = sessionData.sessionId
-                _currentSessionId.value = sessionData.sessionId
-
-                // Load History only if we succeeded
-                val history = api.getSessionHistory(sessionData.sessionId)
-
-                // If we have history, show it. If empty, maybe trigger briefing.
-                // Note: The DAO observation below will eventually overwrite this,
-                // but we keep your original logic here.
-                if (history.isNotEmpty()) {
-                    _messages.value = history.map { ChatMessage(it.text, it.isUser) }
-                } else {
-                    triggerDailyBriefing(virtualDate)
-                }
-
-                // Load Sidebar
-                _pastSessions.value = api.getChatSessions()
 
             } catch (e: Exception) {
                 Log.e("AgentVM", "Backend Handshake Failed: ${e.message}")
-                // Fallback to local DB
                 isOffline = true
                 sessionId = chatDao.getLastSessionId() ?: UUID.randomUUID().toString()
             }
 
-            // 3. Set Session ID (Guaranteed to be not null now)
+            // 3. Set Session ID & Start DB Observation
+            // This ensures the UI shows cached data IMMEDIATELY
             _currentSessionId.value = sessionId
-
-            // 4. Start Observing DB (Instant UI Load)
-            // 🔴 FIX: Added !! because we handled the null case above
             startObservingMessages(sessionId!!)
 
-            // 5. If Online, Sync History & Sidebar
+            // 4. If Online, Sync History & Sidebar (DO IT ONCE HERE)
             if (!isOffline) {
-                // 🔴 FIX: Added !! to fix 'String? vs String' mismatch
+                // Syncs history to DB. The UI updates automatically via startObservingMessages.
                 syncSessionHistory(sessionId!!)
 
+                // Fetch Sidebar
                 try {
                     _pastSessions.value = api.getChatSessions()
                 } catch (e: Exception) {
                     Log.e("AgentVM", "Failed to load sidebar: ${e.message}")
                 }
-            } else {
-                // If offline and new session, maybe show a welcome message?
+
+                // 🟢 RESTORED: Trigger Briefing check
+                // We check if the DB (which we just synced) is empty for this session
+                // We use a small delay or check the DAO directly to be safe,
+                // but since syncSessionHistory waits, we can check _messages.
                 if (_messages.value.isEmpty()) {
-                    // triggerDailyBriefing(virtualDate) // Optional
+                    triggerDailyBriefing(virtualDate)
+                }
+
+            } else {
+                // Offline logic
+                if (_messages.value.isEmpty()) {
+                    // Optional: Local welcome message
                 }
             }
         }

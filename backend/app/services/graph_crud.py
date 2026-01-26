@@ -206,6 +206,19 @@ def mark_day_complete(goal_id: str, day_number: int):
         record = result.single()
         return record["progress"] if record else 0
     
+def mark_side_quest_complete(task_id: str):
+    """
+    Marks a standalone task as complete.
+    """
+    query = """
+    MATCH (t:Task {id: $task_id})
+    SET t.is_completed = true
+    RETURN t.title
+    """
+    with graph_db.get_session() as session:
+        session.run(query, task_id=task_id)
+        print(f"✅ Side Quest {task_id} marked complete.")
+    
 
 def update_day_content(goal_id: str, day_number: int, topic: str, sub_tasks: list):
     """
@@ -359,4 +372,29 @@ def create_side_quest(user_id: str, title: str, scheduled_date: str):
     """
     with graph_db.get_session() as session:
         session.run(query, user_id=user_id, title=title, date=scheduled_date)
+        return True
+    
+def delete_goal_from_db(user_id: str, goal_id: str):
+    """
+    Deletes a goal and ALL its associated Day nodes (Cascade Delete).
+    """
+    query = """
+    MATCH (u:User {id: $user_id})-[:HAS_GOAL]->(g:Goal {id: $goal_id})
+    OPTIONAL MATCH (g)-[:HAS_DAY]->(d:Day)
+    DETACH DELETE g, d
+    """
+    with graph_db.get_session() as session:
+        session.run(query, user_id=user_id, goal_id=goal_id)
+        return True
+
+def delete_task_from_db(user_id: str, task_id: str):
+    """
+    Deletes a single Side Quest task.
+    """
+    query = """
+    MATCH (u:User {id: $user_id})-[:HAS_TASK]->(t:Task {id: $task_id})
+    DETACH DELETE t
+    """
+    with graph_db.get_session() as session:
+        session.run(query, user_id=user_id, task_id=task_id)
         return True

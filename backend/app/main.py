@@ -160,7 +160,6 @@ def search_memory_endpoint(query: str):
 async def chat_endpoint(request: ChatRequest, user_id: str = Depends(get_current_user)):
     try:
         # 1. GET TODAY'S SESSION (Virtual Date Logic)
-        # This ensures every chat today goes into the same "Room"
         if request.session_id == "default_session" or not request.session_id:
              session_data = get_or_create_daily_session(user_id)
              session_id = session_data["session_id"]
@@ -171,7 +170,6 @@ async def chat_endpoint(request: ChatRequest, user_id: str = Depends(get_current
         save_message_to_session(session_id, "user", request.message)
 
         # 3. RUN AGENT
-        # We pass session_id as 'thread_id' so LangGraph remembers context!
         inputs = {
             "messages": [HumanMessage(content=request.message)],
             "is_voice_mode": request.is_voice_mode,
@@ -181,15 +179,40 @@ async def chat_endpoint(request: ChatRequest, user_id: str = Depends(get_current
 
         result = await agent_app.ainvoke(inputs, config=config)
         
-        # 4. SAVE AI RESPONSE
+        # 4. SAVE AI RESPONSE (Sanitized)
         last_msg = result["messages"][-1]
-        response_text = last_msg.content
+        raw_content = last_msg.content
+        
+        # 🔴 FIX: Sanitize content to ensure it is a simple String for Neo4j
+        response_text = ""
+        
+        if isinstance(raw_content, str):
+            response_text = raw_content
+        elif isinstance(raw_content, list):
+            # Handle list of content parts (e.g. text + citations)
+            texts = []
+            for part in raw_content:
+                if isinstance(part, dict) and "text" in part:
+                    texts.append(part["text"])
+                elif isinstance(part, str):
+                    texts.append(part)
+                else:
+                    texts.append(str(part))
+            response_text = " ".join(texts)
+        elif isinstance(raw_content, dict):
+             # Handle the specific Map error you saw
+             response_text = raw_content.get("text", str(raw_content))
+        else:
+            # Final fallback
+            response_text = str(raw_content)
+
+        # Now save the clean string, preventing the Neo4j TypeError
         save_message_to_session(session_id, "ai", response_text)
 
         return {
             "response": response_text,
             "mode": "voice" if request.is_voice_mode else "text",
-            "session_id": session_id # Return this so UI knows where it belongs
+            "session_id": session_id 
         }
 
     except Exception as e:
