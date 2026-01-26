@@ -75,12 +75,15 @@ def get_goals_endpoint(user_id: str = Depends(get_current_user)): # <--- UPDATED
     return get_all_goals(user_id)
 
 @app.post("/goals")
-def create_goal_endpoint(goal: GoalCreate, user_id: str = Depends(get_current_user)): # <--- UPDATED
+def create_goal_endpoint(goal: GoalCreate, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)): # <--- UPDATED
     result = create_goal_in_db(user_id, goal)
-    
+    goal_id = result["id"]
+
     # Generate Timeline Immediately (Sync) so user sees it
     generate_timeline(result["id"], datetime.date.today(), goal.days)
     
+    background_tasks.add_task(run_content_generation, goal_id, 2)
+
     ai_message = (
         f"That sounds like a fantastic challenge! I've created the goal '{goal.title}' "
         f"for you. It's a {goal.days}-day journey, and I've already set up the first steps. "
@@ -133,14 +136,12 @@ def complete_day_endpoint(
     day_number: int, 
     background_tasks: BackgroundTasks
 ):
-    # 1. Get Today for Pacing Logic
-    today_str = datetime.date.today().isoformat()
 
     # 2. Mark current day done (Pass today_str!)
     new_progress = mark_day_complete(goal_id, day_number)
     
     # 3. Trigger AI for the NEXT day
-    background_tasks.add_task(run_content_generation, goal_id, day_number + 1)
+    background_tasks.add_task(run_content_generation, goal_id, day_number + 2)
     
     return {"status": "success", "new_progress": new_progress}
 

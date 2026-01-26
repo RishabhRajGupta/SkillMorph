@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import date
+import threading
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.services.llm_service import llm_service
 from app.agent.state import AgentState
@@ -140,6 +141,17 @@ def goal_node(state: AgentState):
                     first_day_content["sub_tasks"]
                 )
                 print(f"   ✅ Day 1 Ready: {first_day_content['topic']}")
+                
+                def generate_day_2():
+                    print("   🧠 Thread: Generating Day 2...")
+                    try:
+                        content_d2 = llm_service.generate_day_topic(data["title"], 2)
+                        update_day_content(goal_id, 2, content_d2["topic"], content_d2["sub_tasks"])
+                        print("   ✅ Day 2 Ready (Background)")
+                    except Exception as e:
+                        print(f"   ❌ Day 2 Failed: {e}")
+
+                threading.Thread(target=generate_day_2).start()
             except Exception as e:
                 print(f"   ⚠️ Day 1 Generation Failed: {e}")
 
