@@ -79,6 +79,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.HomeScreen
+import com.example.skillmorph.presentation.Profile.ProfileScreen
 import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
 import com.example.skillmorph.presentation.goaldetail.MetroMapViewModel
 import com.example.skillmorph.presentation.goals.GoalsScreen
@@ -465,9 +466,3 @@ fun BottomNavBar(navController: NavController) {
     }
 }
 
-@Composable
-fun ProfileScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Profile Screen", color = Color.White)
-    }
-}
