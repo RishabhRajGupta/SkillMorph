@@ -9,10 +9,15 @@ import com.example.skillmorph.data.local.entities.ChatMessageEntity
 import com.example.skillmorph.data.remote.ChatRequest
 import com.example.skillmorph.data.remote.SessionResponse
 import com.example.skillmorph.data.remote.SkillMorphApi
+import com.example.skillmorph.domain.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.time.LocalDateTime
@@ -31,7 +36,8 @@ data class ChatMessage(
 class AgentViewModel @Inject constructor(
     private val api: SkillMorphApi,
     private val sharedPrefs: SharedPreferences,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     // --- STATE ---
@@ -54,6 +60,15 @@ class AgentViewModel @Inject constructor(
 
     // 🔴 FIX: Job variable declared correctly
     private var messageCollectionJob: Job? = null
+
+    // For streak badge
+    val currentStreak: StateFlow<Int> = profileRepository.userProfile
+        .map { it.stats.currentStreak }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0 // Default value while loading
+        )
 
     // --- INITIALIZATION ---
     init {

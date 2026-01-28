@@ -2,6 +2,7 @@
 package com.example.skillmorph.presentation.main
 
 import android.R.attr.end
+import android.annotation.SuppressLint
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -80,6 +81,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.HomeScreen
 import com.example.skillmorph.presentation.Profile.ProfileScreen
+import com.example.skillmorph.presentation.Profile.ProfileViewModel
 import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
 import com.example.skillmorph.presentation.goaldetail.MetroMapViewModel
 import com.example.skillmorph.presentation.goals.GoalsScreen
@@ -106,6 +108,8 @@ fun MainScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val pastSessions by agentViewModel.pastSessions.collectAsState()
+
+    val currentStreak by agentViewModel.currentStreak.collectAsState()
 
     // 2. ROOT DRAWER (Wraps the whole screen)
     ModalNavigationDrawer(
@@ -153,8 +157,8 @@ fun MainScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    streakCount = 10,
-                    isStreakActive = true,
+                    streakCount = currentStreak,
+                    isStreakActive = currentStreak>0,
                     hasNotification = true,
                     // 🟢 CONNECTED: Clicking Menu opens the Drawer
                     onMenuClick = { scope.launch { drawerState.open() } },
@@ -191,6 +195,7 @@ fun MainScreen(
 }
 
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopAppBar(

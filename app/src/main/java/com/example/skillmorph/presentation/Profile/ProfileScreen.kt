@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.skillmorph.presentation.main.StreakBadge
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
