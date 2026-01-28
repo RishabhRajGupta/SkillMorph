@@ -1,115 +1,90 @@
 package com.example.skillmorph.presentation.Profile
 
-import android.R.attr.maxHeight
-import android.R.attr.maxWidth
 import android.annotation.SuppressLint
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.material3.Icon
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.min // Fixes the minOf error
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillmorph.utils.glassEffect
-import kotlin.io.path.Path
-import kotlin.io.path.moveTo
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-
-// --- Brand Colors ---
-private val DarkBackground = Color(0xFF0F1014)
-private val CardSurface = Color(0xFF16171D) // Slightly lighter than background
-private val NeonCyan = Color(0xFF00E5FF)
-private val NeonPurple = Color(0xFF9D00FF)
-private val BrandGradient = Brush.linearGradient(listOf(NeonCyan, NeonPurple))
+// --- Colors matching your Theme ---
+val NeonBlue = Color(0xFF00E5FF)
+val NeonPurple = Color(0xFF9D00FF)
+val GlassBorder = Color(0xFFFFFFFF).copy(alpha = 0.1f)
+val TransparentBlack = Color(0x80000000) // 50% Black for Glass Background
 
 @Composable
 fun ProfileScreen(
-    viewModel: ProfileViewModel = viewModel() // Hilt Injection usually goes here
+    viewModel: ProfileViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
 
-    // Main Container matching App Background
+    // Main Container - Transparent to let App Gradient show through
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
             .padding(16.dp)
-            .glassEffect(),
+            .padding(bottom = 80.dp), // Padding for bottom nav
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // 1. Header Section
+        // 1. Header (Avatar & Level)
         ProfileHeader(state.user)
 
-        // 2. Stats Row (Streak, Active, Complete)
+        // 2. Stats Grid (Updated with Max Streak)
         StatsRow(state.stats)
 
-        // 3. Consistency Graph (Heatmap)
-        SectionCard(title = "Consistency Graph") {
+        // 3. LeetCode Style Heatmap
+        GlassCard(title = "${state.heatmap.count { it.intensity > 0 }} tasks completed in the last year") {
             HeatmapGraph(state.heatmap)
         }
 
-        // 4. Skills & Badges Split Row
+        // 4. Skills & Badges Split
         Row(
             modifier = Modifier.height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Radar Chart (60% width)
             Box(modifier = Modifier.weight(0.6f)) {
-                SectionCard(title = "Skill Matrix", modifier = Modifier.fillMaxHeight()) {
+                GlassCard(title = "Skill Matrix", modifier = Modifier.fillMaxHeight()) {
                     SkillRadarChart(state.skillRadar)
                 }
             }
 
             // Badges (40% width)
             Box(modifier = Modifier.weight(0.4f)) {
-                SectionCard(title = "Badges", modifier = Modifier.fillMaxHeight()) {
+                GlassCard(title = "Badges", modifier = Modifier.fillMaxHeight()) {
                     BadgesList(state.badges)
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(50.dp)) // Bottom padding for nav bar
     }
 }
 
@@ -121,13 +96,13 @@ fun ProfileScreen(
 fun ProfileHeader(user: UserInfo) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(5.dp)
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // Avatar with Gradient Ring
+        // Avatar Ring with Gradient
         Box(contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(86.dp)) {
                 drawCircle(
-                    brush = BrandGradient,
+                    brush = Brush.linearGradient(listOf(NeonBlue, NeonPurple)),
                     style = Stroke(width = 3.dp.toPx())
                 )
             }
@@ -135,7 +110,7 @@ fun ProfileHeader(user: UserInfo) {
                 modifier = Modifier
                     .size(76.dp)
                     .clip(CircleShape)
-                    .background(Color.DarkGray),
+                    .background(Color.Black.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -151,53 +126,34 @@ fun ProfileHeader(user: UserInfo) {
 
         // Text Info
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = user.name,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = user.title,
-                fontSize = 14.sp,
-                color = NeonCyan // Accent color for title
-            )
+            Text(user.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(user.title, fontSize = 14.sp, color = NeonBlue)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Level & XP Bar
+            // Level & XP
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "Lvl ${user.currentLevel}",
-                    fontWeight = FontWeight.Bold,
-                    color = NeonPurple,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "${user.currentXp} / ${user.maxXp} XP",
-                    color = Color.Gray,
-                    fontSize = 12.sp
-                )
+                Text("Lvl ${user.currentLevel}", fontWeight = FontWeight.Bold, color = NeonPurple, fontSize = 14.sp)
+                Text("${user.currentXp} / ${user.maxXp} XP", color = Color.Gray, fontSize = 12.sp)
             }
-
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Gradient Progress Bar
+            // XP Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFF2A2B35))
+                    .background(Color.White.copy(alpha = 0.1f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(user.currentXp / user.maxXp.toFloat())
                         .fillMaxHeight()
-                        .background(BrandGradient)
+                        .background(Brush.horizontalGradient(listOf(NeonBlue, NeonPurple)))
                 )
             }
         }
@@ -207,101 +163,127 @@ fun ProfileHeader(user: UserInfo) {
 @Composable
 fun StatsRow(stats: UserStats) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(5.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        StatCard(
-            label = "Streak",
-            value = "${stats.currentStreak} \uD83D\uDD25", // Fire emoji
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            label = "Active",
-            value = "${stats.totalActiveDays} Days",
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            label = "Complete",
-            value = "${stats.completionRate}%",
-            modifier = Modifier.weight(1f)
-        )
+        StatCard(label = "Current Streak", value = "${stats.currentStreak} \uD83D\uDD25", modifier = Modifier.weight(1f))
+        StatCard(label = "Active Days", value = "${stats.totalActiveDays}", modifier = Modifier.weight(1f))
+        StatCard(label = "Max Streak", value = "${stats.maxStreak}", modifier = Modifier.weight(1f)) // New Stat
     }
 }
 
 @Composable
 fun StatCard(label: String, value: String, modifier: Modifier) {
+    // Re-implementing Glass Effect manually here to ensure it works inside the row
     Column(
         modifier = modifier
-            .background(CardSurface, RoundedCornerShape(12.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .glassEffect() // Using your extension
             .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = value, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-        Text(text = label, fontSize = 12.sp, color = Color.Gray)
-    }
-}
-
-@Composable
-fun SectionCard(
-    title: String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier = modifier
-            .background(CardSurface, RoundedCornerShape(16.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
-            .padding(16.dp)
-    ) {
-        Text(
-            text = title.uppercase(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray,
-            letterSpacing = 1.sp
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        content()
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+        Text(label, fontSize = 11.sp, color = Color.LightGray)
     }
 }
 
 @Composable
 fun HeatmapGraph(data: List<DailyActivity>) {
-    // 7 Rows (Days of week), calculate columns dynamically
-    val rows = 7
-    val columns = data.chunked(rows)
+    // 1. Group Data by Month (Preserving Order)
+    // Map<YearMonth, List<DailyActivity>>
+    val groupedByMonth = remember(data) {
+        data.groupBy { YearMonth.from(it.date) }
+    }
 
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.height(100.dp) // Fixed height to fit ~7 squares
-    ) {
-        items(columns) { columnData ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                columnData.forEach { day ->
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(getHeatmapColor(day.intensity))
-                    )
-                }
+    // 2. Auto-scroll to the latest month
+    val listState = rememberLazyListState()
+    LaunchedEffect(Unit) {
+        if (groupedByMonth.isNotEmpty()) {
+            listState.scrollToItem(groupedByMonth.size - 1)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        LazyRow(
+            state = listState,
+            horizontalArrangement = Arrangement.spacedBy(12.dp), // Gap between Month Blocks
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp) // Fixed height
+                .padding(horizontal = 4.dp)
+        ) {
+            items(groupedByMonth.keys.toList()) { yearMonth ->
+                val daysInMonth = groupedByMonth[yearMonth] ?: emptyList()
+                MonthBlock(yearMonth, daysInMonth)
             }
         }
     }
 }
 
-fun getHeatmapColor(intensity: Int): Color {
-    return when (intensity) {
-        0 -> Color(0xFF2A2B35) // Empty / Gray
-        1 -> Color(0xFF0D47A1) // Dark Blue
-        2 -> Color(0xFF1976D2) // Medium Blue
-        3 -> Color(0xFF42A5F5) // Light Blue
-        4 -> Color(0xFF00E5FF) // Neon Cyan (Max intensity)
-        else -> Color(0xFF2A2B35)
+@Composable
+fun MonthBlock(yearMonth: YearMonth, days: List<DailyActivity>) {
+    // Calculate layout for this specific month
+    val firstDayDate = days.firstOrNull()?.date ?: return
+
+    // DayOfWeek value: Mon=1, ... Sun=7.
+    // We want Sun=0, Mon=1... Sat=6 for our grid logic.
+    val startDayOfWeek = firstDayDate.dayOfWeek.value % 7
+
+    // We pad the start with "null" to align the first day correctly
+    val paddedDays = List(startDayOfWeek) { null } + days
+
+    // Chunk into columns of 7 (Weeks)
+    val weeks = paddedDays.chunked(7)
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // The Grid
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            weeks.forEach { week ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Render 7 cells per column.
+                    // If the week is incomplete (end of month), we pad with spacers.
+                    for (i in 0 until 7) {
+                        val day = week.getOrNull(i)
+                        if (day != null) {
+                            // Actual Data Day
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(getHeatmapColor(day.intensity))
+                            )
+                        } else {
+                            // Empty Placeholder (Padding)
+                            // We make it transparent so it just takes up space
+                            Spacer(modifier = Modifier.size(10.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Month Label at Bottom
+        Text(
+            text = yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 10.sp,
+            color = Color.Gray
+        )
     }
 }
 
+fun getHeatmapColor(intensity: Int): Color {
+    return when (intensity) {
+        // White tint for empty days (0) to be visible on dark glass background
+        0 -> Color.White.copy(alpha = 0.1f)
+        1 -> Color(0xFF0E4429) // Deep Green
+        2 -> Color(0xFF006D32) // Medium Green
+        3 -> Color(0xFF26A641) // Bright Green
+        4 -> Color(0xFF39D353) // Neon Green
+        else -> Color.White.copy(alpha = 0.1f)
+    }
+}
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -309,18 +291,15 @@ fun SkillRadarChart(skills: Map<String, Float>) {
     val labels = skills.keys.toList()
     val values = skills.values.toList()
 
-    // 1. BoxWithConstraints lets us measure the available Dp space
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f),
         contentAlignment = Alignment.Center
     ) {
-        // FAILSAFE FIX: Use simple if/else instead of min() to avoid import errors
-        val minDimension = if (maxWidth < maxHeight) maxWidth else maxHeight
-        val chartRadius = minDimension / 2 * 0.65f
-
-        // Canvas needs pixels, not Dp. We convert here.
+        // Failsafe radius calc
+        val minDim = if (maxWidth < maxHeight) maxWidth else maxHeight
+        val chartRadius = minDim / 2 * 0.65f
         val density = LocalDensity.current
 
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -328,7 +307,7 @@ fun SkillRadarChart(skills: Map<String, Float>) {
             val center = Offset(size.width / 2, size.height / 2)
             val angleStep = (2 * Math.PI / labels.size).toFloat()
 
-            // --- Draw Web Background (Grid) ---
+            // Web
             for (i in 1..4) {
                 val r = radiusPx * (i / 4f)
                 val path = Path()
@@ -339,14 +318,10 @@ fun SkillRadarChart(skills: Map<String, Float>) {
                     if (j == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 path.close()
-                drawPath(
-                    path = path,
-                    color = Color.Gray.copy(alpha = 0.2f),
-                    style = Stroke(1.dp.toPx())
-                )
+                drawPath(path, Color.Gray.copy(alpha = 0.2f), style = Stroke(1.dp.toPx()))
             }
 
-            // --- Draw Data Polygon (The Blue Shape) ---
+            // Data
             val dataPath = Path()
             for (j in labels.indices) {
                 val r = radiusPx * values[j]
@@ -356,30 +331,22 @@ fun SkillRadarChart(skills: Map<String, Float>) {
                 if (j == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
             }
             dataPath.close()
-
-            // Fill with low opacity
-            drawPath(dataPath, NeonCyan.copy(alpha = 0.3f))
-            // Border with full opacity
-            drawPath(dataPath, NeonCyan, style = Stroke(2.dp.toPx()))
+            drawPath(dataPath, NeonBlue.copy(alpha = 0.3f))
+            drawPath(dataPath, NeonBlue, style = Stroke(2.dp.toPx()))
         }
 
-        // 3. Draw Text Labels
-        // We calculate positions in Dp so we can use standard Text composables
+        // Labels
         labels.forEachIndexed { index, label ->
             val angleStep = (2 * Math.PI / labels.size).toFloat()
             val angle = index * angleStep - (Math.PI / 2).toFloat()
-
-            // Push text further out (1.35x radius) so it doesn't overlap the web
             val labelRadius = chartRadius * 1.35f
-
-            // Calculate offset using simple Trig
             val xOffset = labelRadius * cos(angle)
             val yOffset = labelRadius * sin(angle)
 
             Text(
                 text = label,
                 fontSize = 10.sp,
-                color = Color.Gray,
+                color = Color.LightGray,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.offset(x = xOffset, y = yOffset)
             )
@@ -395,7 +362,7 @@ fun BadgesList(badges: List<Badge>) {
                 Icon(
                     imageVector = badge.icon,
                     contentDescription = null,
-                    tint = if (badge.isUnlocked) NeonCyan else Color.Gray,
+                    tint = if (badge.isUnlocked) NeonBlue else Color.Gray,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -409,8 +376,43 @@ fun BadgesList(badges: List<Badge>) {
     }
 }
 
-@Preview
+// -----------------------------------------------------------------------------
+// HELPERS
+// -----------------------------------------------------------------------------
+
 @Composable
-fun PreviewProfile() {
+fun GlassCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .glassEffect() // Using your extension
+            .padding(16.dp)
+    ) {
+        Text(
+            text = title.uppercase(),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.LightGray,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        content()
+    }
+}
+
+// --- Placeholder for your custom modifier to ensure compilation ---
+// You already have this in your Utils file, but I include the logic here for reference.
+fun Modifier.glassEffect(): Modifier = this
+    .clip(RoundedCornerShape(16.dp))
+    .background(Color(0x40000000)) // Fallback transparent black
+    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+
+
+@Preview(showSystemUi = true)
+@Composable
+fun Preview(){
     ProfileScreen()
 }

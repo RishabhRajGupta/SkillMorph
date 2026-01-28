@@ -9,14 +9,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 
 // --- Data Models ---
 data class ProfileState(
     val user: UserInfo,
     val stats: UserStats,
-    val skillRadar: Map<String, Float>, // Label to Value (0.0 - 1.0)
-    val heatmap: List<DailyActivity>,
+    val skillRadar: Map<String, Float>,
+    val heatmap: List<DailyActivity>, // Now holds 365 days
     val badges: List<Badge>
 )
 
@@ -32,12 +33,12 @@ data class UserInfo(
 data class UserStats(
     val currentStreak: Int,
     val totalActiveDays: Int,
-    val completionRate: Int
+    val maxStreak: Int // UPDATED: Changed from completionRate
 )
 
 data class DailyActivity(
     val date: LocalDate,
-    val intensity: Int // 0-4
+    val intensity: Int // 0 (Gray) to 4 (Bright Green)
 )
 
 data class Badge(
@@ -53,14 +54,21 @@ class ProfileViewModel : ViewModel() {
     val state: StateFlow<ProfileState> = _state.asStateFlow()
 
     private fun generateMockState(): ProfileState {
-        // Mock Heatmap: Past 100 days
         val today = LocalDate.now()
-        val heatmapData = (0..105).map { offset ->
-            DailyActivity(
-                date = today.minusDays((105 - offset).toLong()),
-                // Random intensity to look like real data
-                intensity = if (Random.nextFloat() > 0.4) Random.nextInt(1, 5) else 0
-            )
+        // Generate last 365 days of data for the LeetCode graph
+        // We create a list from [Today - 364] to [Today]
+        val heatmapData = (0 until 365).map { offset ->
+            val date = today.minusDays((364 - offset).toLong())
+            // Randomize intensity to mimic real coding patterns
+            val isWeekend = date.dayOfWeek.value >= 6
+            val baseChance = if (isWeekend) 0.3f else 0.6f
+
+            val intensity = if (Random.nextFloat() < baseChance) {
+                Random.nextInt(1, 5) // 1 to 4
+            } else {
+                0
+            }
+            DailyActivity(date, intensity)
         }
 
         return ProfileState(
@@ -74,10 +82,9 @@ class ProfileViewModel : ViewModel() {
             ),
             stats = UserStats(
                 currentStreak = 14,
-                totalActiveDays = 89,
-                completionRate = 92
+                totalActiveDays = 111,
+                maxStreak = 65 // Updated Field
             ),
-            // Hardcoded categories as requested, but mapped to values
             skillRadar = mapOf(
                 "Coding" to 0.90f,
                 "Design" to 0.60f,
