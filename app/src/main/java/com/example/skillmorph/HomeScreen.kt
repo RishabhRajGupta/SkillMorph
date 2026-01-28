@@ -59,8 +59,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
 import com.example.skillmorph.presentation.main.viewModel.ChatMessage
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -323,11 +325,11 @@ fun AgentRing(viewModel: AgentViewModel) { // CORRECTED: Now takes a ViewModel
     // --- INITIALIZATION: FORM THE RING ---
     LaunchedEffect(Unit) {
         if (particles.isEmpty()) {
-            repeat(300) {
+            repeat(350) {
                 particles.add(
                     RingParticle(
                         angle = Random.nextFloat() * 360,
-                        baseDistance = 300f + Random.nextFloat() * 70f,
+                        baseDistance = 300f + Random.nextFloat() * 90f,
                         size = Random.nextFloat() * 6 + 3,
                         speed = Random.nextFloat() * 0.3f + 0.2f
                     )
@@ -392,7 +394,7 @@ fun AgentRing(viewModel: AgentViewModel) { // CORRECTED: Now takes a ViewModel
                     isAgentSpeaking -> Color(0xFF00FFFF).copy(alpha = 0.8f)      // Cyan (Agent Talking)
                     isThinking -> Color(0xFF8A2BE2).copy(alpha = 0.7f)           // BlueViolet (Thinking)
                     isUserSpeaking -> Color(0xFF00FF00).copy(alpha = 0.8f)       // Green (Listening to You)
-                    else -> Color(0xFF0088AA).copy(alpha = 0.4f)                 // Dim Blue (Idle)
+                    else -> Color.Cyan.copy(0.7f)                 // Dim Blue (Idle)
                 }
 
                 drawCircle(

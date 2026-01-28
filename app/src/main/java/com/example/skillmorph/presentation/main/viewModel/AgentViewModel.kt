@@ -9,6 +9,7 @@ import com.example.skillmorph.data.local.entities.ChatMessageEntity
 import com.example.skillmorph.data.remote.ChatRequest
 import com.example.skillmorph.data.remote.SessionResponse
 import com.example.skillmorph.data.remote.SkillMorphApi
+import com.example.skillmorph.domain.repository.AuthRepository
 import com.example.skillmorph.domain.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -37,7 +38,8 @@ class AgentViewModel @Inject constructor(
     private val api: SkillMorphApi,
     private val sharedPrefs: SharedPreferences,
     private val chatDao: ChatDao,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     // --- STATE ---
@@ -354,5 +356,9 @@ class AgentViewModel @Inject constructor(
 
     fun onTtsFinished() {
         _ttsText.value = null
+    }
+
+    suspend fun signout(){
+        authRepository.signOut()
     }
 }

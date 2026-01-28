@@ -74,7 +74,7 @@ class ProfileRepository @Inject constructor(
                 count <= 7 -> 3
                 else -> 4
             }
-            DailyActivity(date, intensity)
+            DailyActivity(date, intensity, count)
         }
 
         // B. Radar Chart Logic: Normalize values (0.0 -> 1.0)

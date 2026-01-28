@@ -1,7 +1,7 @@
 import uuid
 from app.services.neo4j_service import graph_db
 from app.schemas.graph_models import GoalCreate, TaskCreate
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 def create_goal_in_db(user_id: str, goal_data: GoalCreate):
     """
@@ -401,28 +401,32 @@ def delete_task_from_db(user_id: str, task_id: str):
     
 
 
-# Profile 
-from datetime import datetime, timedelta
-
 def get_user_profile_stats(user_id: str):
     """
-    Aggregates all user data to build the profile screen dynamically.
+    Aggregates user data.
+    FIXED: Converts all Neo4j Date objects to Strings before sorting to prevent TypeError.
     """
     query = """
     MATCH (u:User {id: $user_id})
     
-    // 1. Get all completed items (Days from Goals + Side Quests) with their dates and categories
+    // 1. Goal Days
     OPTIONAL MATCH (u)-[:HAS_GOAL]->(g:Goal)-[:HAS_DAY]->(d:Day)
     WHERE d.is_completed = true
-    WITH u, collect({date: d.completed_date, category: g.category}) as goal_tasks
+    // Fallback logic: If completed_date is missing, use scheduled date or today
+    WITH u, collect({
+        date: COALESCE(d.completed_date, d.date, date()), 
+        category: g.category
+    }) as goal_tasks
     
+    // 2. Side Quests
     OPTIONAL MATCH (u)-[:HAS_TASK]->(t:Task)
     WHERE t.is_completed = true
-    WITH u, goal_tasks, collect({date: t.scheduled_date, category: "Side Quest"}) as side_quests
+    WITH u, goal_tasks, collect({
+        date: COALESCE(t.completed_date, t.scheduled_date, date()), 
+        category: "Side Quest"
+    }) as side_quests
     
-    // Combine lists
     WITH goal_tasks + side_quests as all_completed
-    
     RETURN all_completed
     """
     
@@ -435,29 +439,27 @@ def get_user_profile_stats(user_id: str):
             
         all_completed = record["all_completed"]
         
-        # --- PYTHON PROCESSING (Easier than complex Cypher for Streaks) ---
+        # --- PYTHON PROCESSING ---
         
         # 1. Total XP (10 XP per task)
         total_tasks = len(all_completed)
         total_xp = total_tasks * 10
         
-        # 2. Level Calculation (Simple formula: Level = sqrt(XP) or steps)
-        # Level 1: 0-500, Level 2: 500-1200...
-        # Let's say 1 Level = 500 XP for simplicity
+        # 2. Level Calculation (Simple: 1 Level = 500 XP)
         current_level = int(total_xp / 500) + 1
         xp_next_level = 500 * current_level
         xp_current_level_start = 500 * (current_level - 1)
         
         # 3. Heatmap & Streaks
-        # We need a set of unique dates YYYY-MM-DD
-        dates_set = sorted(list(set([x['date'] for x in all_completed if x['date']])))
+        # 🔴 THE FIX IS HERE: str(x['date']) forces everything to be a String
+        dates_list = [str(x['date']) for x in all_completed if x['date']]
+        dates_set = sorted(list(set(dates_list)))
         
         current_streak = 0
         max_streak = 0
         
         if dates_set:
             # Calculate Streaks
-            # Convert strings to date objects
             date_objs = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates_set]
             
             # Max Streak Logic
@@ -474,19 +476,16 @@ def get_user_profile_stats(user_id: str):
             # Current Streak Logic
             today = datetime.now().date()
             if date_objs[-1] == today:
-                current_streak = temp_streak # If we did a task today, streak is alive
+                current_streak = temp_streak
             elif date_objs[-1] == (today - timedelta(days=1)):
-                 current_streak = temp_streak # If we did yesterday, streak is alive
+                 current_streak = temp_streak
             else:
-                current_streak = 0 # Streak broken
+                current_streak = 0
         
         # Heatmap Data (Dictionary: Date -> Count)
-        # Frontend expects: {"2026-01-28": 4, "2026-01-27": 1}
         heatmap_data = {}
-        for item in all_completed:
-            d = item['date']
-            if d:
-                heatmap_data[d] = heatmap_data.get(d, 0) + 1
+        for d_str in dates_list: # We can reuse our string list here
+            heatmap_data[d_str] = heatmap_data.get(d_str, 0) + 1
             
         # 4. Skill Matrix (Categories)
         category_counts = {}
@@ -494,26 +493,25 @@ def get_user_profile_stats(user_id: str):
             cat = item['category'] or "General"
             category_counts[cat] = category_counts.get(cat, 0) + 1
             
-        # Determine "Title" (Tag) based on top category
+        # Determine Title
         if not category_counts:
             main_tag = "Novice"
         else:
             top_category = max(category_counts, key=category_counts.get)
             main_tag = get_title_for_category(top_category, current_level)
 
-        # 5. Badges (Streak Based)
+        # 5. Badges
         badges = []
         if max_streak >= 5: badges.append("Streak Starter")
         if max_streak >= 50: badges.append("Streak Master")
         if max_streak >= 100: badges.append("Century Club")
-        # Add logic for "Early Riser" if you track time, otherwise skip.
 
         return {
             "stats": {
                 "level": current_level,
                 "current_xp": total_xp,
-                "next_level_xp": xp_next_level, # Max for progress bar
-                "prev_level_xp": xp_current_level_start, # Min for progress bar
+                "next_level_xp": xp_next_level,
+                "prev_level_xp": xp_current_level_start,
                 "current_streak": current_streak,
                 "max_streak": max_streak,
                 "active_days": len(dates_set),

@@ -81,7 +81,8 @@ fun ProfileScreen(
         StatsRow(state.stats)
 
         // 3. LeetCode Style Heatmap
-        GlassCard(title = "${state.heatmap.count { it.intensity > 0 }} tasks completed in the last year") {
+        val totalTasks = state.heatmap.sumOf{it.count}
+        GlassCard(title = "$totalTasks tasks completed in the last year") {
             HeatmapGraph(state.heatmap)
         }
 

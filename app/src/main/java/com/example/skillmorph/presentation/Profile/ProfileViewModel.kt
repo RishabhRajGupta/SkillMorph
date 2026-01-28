@@ -65,7 +65,8 @@ data class UserStats(
 
 data class DailyActivity(
     val date: LocalDate,
-    val intensity: Int
+    val intensity: Int,
+    val count: Int
 )
 
 data class Badge(

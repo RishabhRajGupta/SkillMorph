@@ -226,7 +226,7 @@ fun AgentRingFace(
     // 1. Create the Particles (Once)
     val particles = remember {
         val list = mutableListOf<LoginParticle>()
-        repeat(150) {
+        repeat(450) {
             list.add(
                 LoginParticle(
                     initialAngle = Random.nextFloat() * 360f,

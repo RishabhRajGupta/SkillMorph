@@ -30,11 +30,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,6 +86,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.HomeScreen
+import com.example.skillmorph.data.remote.SessionResponse
+import com.example.skillmorph.data.repository.AuthRepositoryImpl
 import com.example.skillmorph.presentation.Profile.ProfileScreen
 import com.example.skillmorph.presentation.Profile.ProfileViewModel
 import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
@@ -115,42 +123,26 @@ fun MainScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = Color.Black.copy(alpha = 0.9f),
-                drawerContentColor = Color.White
-            ) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    "Time Travel",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color(0xFF00E5FF)
-                )
-                Divider(color = Color.Gray.copy(alpha = 0.3f))
+            GlassyNavigationDrawerContent(
+                pastSessions = pastSessions,
+                onSessionClick = { sessionId ->
+                    agentViewModel.loadSession(sessionId)
+                    scope.launch { drawerState.close() }
 
-                // The History List
-                LazyColumn {
-                    items(pastSessions) { session ->
-                        NavigationDrawerItem(
-                            label = { Text("${session.date} - ${session.title}") },
-                            selected = false,
-                            onClick = {
-                                agentViewModel.loadSession(session.sessionId) // Load Chat
-                                scope.launch { drawerState.close() }
-
-                                // Optional: If user is on Goals/Tasks, jump to Home/Agent to see the chat
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(navController.graph.findStartDestination().id)
-                                }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                unselectedTextColor = Color.White
-                            )
-                        )
+                    // Navigate home if needed
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(navController.graph.findStartDestination().id)
                     }
+                },
+                onLogoutClick = {
+                    // Handle Logout Logic Here
+                    scope.launch { agentViewModel.signout()
+                        drawerState.close()
+                        appNavController.navigate("login_screen")
+                    }
+                    // e.g., authViewModel.logout()
                 }
-            }
+            )
         }
     ) {
         // 3. YOUR EXISTING SCAFFOLD (Now inside the drawer)
@@ -471,3 +463,165 @@ fun BottomNavBar(navController: NavController) {
     }
 }
 
+// Side Bar / Drawer
+@Composable
+fun GlassyNavigationDrawerContent(
+    pastSessions: List<SessionResponse>, // Assuming you have this data class
+    onSessionClick: (String) -> Unit,
+    onLogoutClick: () -> Unit
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = Color.Transparent, // Crucial: Remove default solid background
+        drawerContentColor = Color.White,
+        modifier = Modifier
+            .width(300.dp) // Set a fixed width or fillMaxWidth(0.8f)
+            .padding(end = 16.dp) // Gap between drawer and screen edge
+    ) {
+        // The Glass Container
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .glassEffect() // Your existing extension
+                .background(
+                    // Add a subtle vertical gradient for depth
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF0F1014).copy(alpha = 0.8f),
+                            Color(0xFF16181D).copy(alpha = 0.9f)
+                        )
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            // 1. Header Section
+            DrawerHeader()
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider(color = Color.White.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. Scrollable History List
+            Text(
+                "Recent Sessions",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+            )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f), // Takes all available space
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(pastSessions) { session ->
+                    GlassySessionItem(
+                        session = session,
+                        onClick = { onSessionClick(session.sessionId) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider(color = Color.White.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. Red Glassy Logout Button
+            GlassyLogoutButton(onClick = onLogoutClick)
+        }
+    }
+}
+
+// --- Sub-Components ---
+
+@Composable
+fun DrawerHeader() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // A simple "Time Travel" Icon
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF9D00FF)))),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.History,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column {
+            Text(
+                text = "Time Travel",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Restore past context",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF00E5FF) // Neon Cyan
+            )
+        }
+    }
+}
+
+@Composable
+fun GlassySessionItem(session: SessionResponse, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .background(Color.White.copy(alpha = 0.05f)) // Very subtle hover effect
+            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = session.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                maxLines = 1
+            )
+            Text(
+                text = session.date, // e.g., "Oct 24 • 2:30 PM"
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray
+            )
+        }
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = Color.Gray,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+@Composable
+fun GlassyLogoutButton(onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            // Custom Glassy Red Look
+            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFFF5252).copy(alpha = 0.1f), // Transparent Red
+            contentColor = Color(0xFFFF5252) // Red Text
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Log Out", fontWeight = FontWeight.Bold)
+        }
+    }
+}
