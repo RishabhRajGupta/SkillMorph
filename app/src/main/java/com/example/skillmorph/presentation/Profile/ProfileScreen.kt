@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,6 +25,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.min // Fixes the minOf error
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -41,10 +45,24 @@ val TransparentBlack = Color(0x80000000) // 50% Black for Glass Background
 
 @Composable
 fun ProfileScreen(
-    viewModel: ProfileViewModel = viewModel()
+    viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
+
+    // This forces a refresh every time you navigate to this tab
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Main Container - Transparent to let App Gradient show through
     Column(
@@ -188,31 +206,33 @@ fun StatCard(label: String, value: String, modifier: Modifier) {
 
 @Composable
 fun HeatmapGraph(data: List<DailyActivity>) {
-    // 1. Group Data by Month (Preserving Order)
-    // Map<YearMonth, List<DailyActivity>>
+    // 1. Group Data by Month
     val groupedByMonth = remember(data) {
         data.groupBy { YearMonth.from(it.date) }
     }
 
-    // 2. Auto-scroll to the latest month
-    val listState = rememberLazyListState()
-    LaunchedEffect(Unit) {
-        if (groupedByMonth.isNotEmpty()) {
-            listState.scrollToItem(groupedByMonth.size - 1)
-        }
+    // 2. Prepare keys for Reverse Layout
+    // Since layout is reversed (Right-to-Left), the "First" item we pass
+    // will appear on the far RIGHT. So we want the Latest Month (Dec/Jan) first.
+    val monthKeys = remember(groupedByMonth) {
+        groupedByMonth.keys.sorted().reversed() // e.g. [Jan 2026, Dec 2025, Nov 2025...]
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         LazyRow(
-            state = listState,
-            horizontalArrangement = Arrangement.spacedBy(12.dp), // Gap between Month Blocks
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp) // Fixed height
-                .padding(horizontal = 4.dp)
+                .height(140.dp)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            reverseLayout = true // 🔴 THE FIX: Starts content from the Right Edge
         ) {
-            items(groupedByMonth.keys.toList()) { yearMonth ->
+            items(monthKeys) { yearMonth ->
                 val daysInMonth = groupedByMonth[yearMonth] ?: emptyList()
+
+                // We render the months normally.
+                // Because of reverseLayout + reversed list, they appear visually as:
+                // [Oct] [Nov] [Dec] | <-- Screen Edge
                 MonthBlock(yearMonth, daysInMonth)
             }
         }

@@ -10,7 +10,7 @@ from app.services.neo4j_service import graph_db
 from app.services.graph_crud import (
     create_goal_in_db, generate_timeline, get_all_goals, 
     get_goal_roadmap, mark_day_complete, update_day_content, 
-    get_tasks_for_date, create_side_quest
+    get_tasks_for_date, create_side_quest, get_user_profile_stats
 )
 from app.services.chat_session_service import (
     get_or_create_daily_session, 
@@ -244,3 +244,12 @@ def get_sessions_list_endpoint(user_id: str = Depends(get_current_user)):
     Returns a list of ALL past sessions (Date + Title).
     """
     return get_user_sessions(user_id)
+
+
+@app.get("/user/profile")
+def get_user_profile_endpoint(user_id: str = Depends(get_current_user)):
+    """
+    Returns all calculated stats for the Profile Screen.
+    Android should cache this response in Room.
+    """
+    return get_user_profile_stats(user_id)

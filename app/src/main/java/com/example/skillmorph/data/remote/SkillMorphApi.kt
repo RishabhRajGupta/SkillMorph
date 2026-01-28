@@ -1,5 +1,6 @@
 package com.example.skillmorph.data.remote
 
+import com.example.skillmorph.data.remote.dtos.UserProfileDto
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.Query
 import retrofit2.http.Body
@@ -124,4 +125,7 @@ interface SkillMorphApi {
     // 3. Get Sidebar List
     @GET("/chat/sessions")
     suspend fun getChatSessions(): List<SessionResponse>
+
+    @GET("/user/profile")
+    suspend fun getUserProfile(): UserProfileDto
 }

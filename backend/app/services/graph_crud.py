@@ -398,3 +398,153 @@ def delete_task_from_db(user_id: str, task_id: str):
     with graph_db.get_session() as session:
         session.run(query, user_id=user_id, task_id=task_id)
         return True
+    
+
+
+# Profile 
+from datetime import datetime, timedelta
+
+def get_user_profile_stats(user_id: str):
+    """
+    Aggregates all user data to build the profile screen dynamically.
+    """
+    query = """
+    MATCH (u:User {id: $user_id})
+    
+    // 1. Get all completed items (Days from Goals + Side Quests) with their dates and categories
+    OPTIONAL MATCH (u)-[:HAS_GOAL]->(g:Goal)-[:HAS_DAY]->(d:Day)
+    WHERE d.is_completed = true
+    WITH u, collect({date: d.completed_date, category: g.category}) as goal_tasks
+    
+    OPTIONAL MATCH (u)-[:HAS_TASK]->(t:Task)
+    WHERE t.is_completed = true
+    WITH u, goal_tasks, collect({date: t.scheduled_date, category: "Side Quest"}) as side_quests
+    
+    // Combine lists
+    WITH goal_tasks + side_quests as all_completed
+    
+    RETURN all_completed
+    """
+    
+    with graph_db.get_session() as session:
+        result = session.run(query, user_id=user_id)
+        record = result.single()
+        
+        if not record:
+            return default_profile_stats()
+            
+        all_completed = record["all_completed"]
+        
+        # --- PYTHON PROCESSING (Easier than complex Cypher for Streaks) ---
+        
+        # 1. Total XP (10 XP per task)
+        total_tasks = len(all_completed)
+        total_xp = total_tasks * 10
+        
+        # 2. Level Calculation (Simple formula: Level = sqrt(XP) or steps)
+        # Level 1: 0-500, Level 2: 500-1200...
+        # Let's say 1 Level = 500 XP for simplicity
+        current_level = int(total_xp / 500) + 1
+        xp_next_level = 500 * current_level
+        xp_current_level_start = 500 * (current_level - 1)
+        
+        # 3. Heatmap & Streaks
+        # We need a set of unique dates YYYY-MM-DD
+        dates_set = sorted(list(set([x['date'] for x in all_completed if x['date']])))
+        
+        current_streak = 0
+        max_streak = 0
+        
+        if dates_set:
+            # Calculate Streaks
+            # Convert strings to date objects
+            date_objs = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates_set]
+            
+            # Max Streak Logic
+            temp_streak = 1
+            max_streak = 1
+            for i in range(1, len(date_objs)):
+                delta = (date_objs[i] - date_objs[i-1]).days
+                if delta == 1:
+                    temp_streak += 1
+                elif delta > 1:
+                    temp_streak = 1
+                max_streak = max(max_streak, temp_streak)
+            
+            # Current Streak Logic
+            today = datetime.now().date()
+            if date_objs[-1] == today:
+                current_streak = temp_streak # If we did a task today, streak is alive
+            elif date_objs[-1] == (today - timedelta(days=1)):
+                 current_streak = temp_streak # If we did yesterday, streak is alive
+            else:
+                current_streak = 0 # Streak broken
+        
+        # Heatmap Data (Dictionary: Date -> Count)
+        # Frontend expects: {"2026-01-28": 4, "2026-01-27": 1}
+        heatmap_data = {}
+        for item in all_completed:
+            d = item['date']
+            if d:
+                heatmap_data[d] = heatmap_data.get(d, 0) + 1
+            
+        # 4. Skill Matrix (Categories)
+        category_counts = {}
+        for item in all_completed:
+            cat = item['category'] or "General"
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+            
+        # Determine "Title" (Tag) based on top category
+        if not category_counts:
+            main_tag = "Novice"
+        else:
+            top_category = max(category_counts, key=category_counts.get)
+            main_tag = get_title_for_category(top_category, current_level)
+
+        # 5. Badges (Streak Based)
+        badges = []
+        if max_streak >= 5: badges.append("Streak Starter")
+        if max_streak >= 50: badges.append("Streak Master")
+        if max_streak >= 100: badges.append("Century Club")
+        # Add logic for "Early Riser" if you track time, otherwise skip.
+
+        return {
+            "stats": {
+                "level": current_level,
+                "current_xp": total_xp,
+                "next_level_xp": xp_next_level, # Max for progress bar
+                "prev_level_xp": xp_current_level_start, # Min for progress bar
+                "current_streak": current_streak,
+                "max_streak": max_streak,
+                "active_days": len(dates_set),
+                "main_tag": main_tag
+            },
+            "heatmap": heatmap_data,
+            "skill_matrix": category_counts,
+            "badges": badges
+        }
+
+def get_title_for_category(category, level):
+    """Returns a cool title based on what the user studies most."""
+    titles = {
+        "Coding": ["Script Kiddie", "Programmer", "Code Ninja", "System Architect"],
+        "Health": ["Walker", "Runner", "Athlete", "Titan"],
+        "Finance": ["Saver", "Investor", "Banker", "Tycoon"],
+        "General": ["Starter", "Learner", "Achiever", "Master"]
+    }
+    
+    # Clamp level 1-4
+    idx = min(level, 4) - 1
+    if idx < 0: idx = 0
+    
+    options = titles.get(category, titles["General"])
+    return options[idx]
+
+def default_profile_stats():
+    return {
+        "stats": {
+            "level": 1, "current_xp": 0, "next_level_xp": 500, "prev_level_xp": 0,
+            "current_streak": 0, "max_streak": 0, "active_days": 0, "main_tag": "Novice"
+        },
+        "heatmap": {}, "skill_matrix": {}, "badges": []
+    }
