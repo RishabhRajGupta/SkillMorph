@@ -33,5 +33,7 @@ data class DayPlan(
     val subTasks: List<String>,
 
     @SerializedName("date_iso")
-    val dateIso: String
+    val dateIso: String,
+
+    val subTaskStates: List<Boolean>
 )

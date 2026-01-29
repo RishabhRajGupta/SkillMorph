@@ -61,23 +61,28 @@ def add_day_to_goal(goal_id: str, day_number: int, topic: str):
         return {"status": "Day Added", "day": day_number}
     
 
-def generate_timeline(goal_id: str, start_date: date, duration_days: int):
+def create_smart_timeline(goal_id: str, schedule: list, start_date: date):
     """
-    Generates nodes. 
-    CRITICAL CHANGE: Only Day 1 gets a date. 
-    Future days are 'floating' (scheduled_date = null) until unlocked.
+    Creates Day nodes based on the AI-generated schedule.
+    Populates 'topic' and 'sub_tasks' IMMEDIATELY.
     """
-    days_data = []
     
-    for i in range(1, duration_days + 1):
-        # Only Day 1 gets a date (Today). Others wait.
-        scheduled = start_date.isoformat() if i == 1 else None
+    # Prepare data for Neo4j UNWIND
+    neo4j_data = []
+    
+    for day in schedule:
+        # Day 1 gets a date. Others are floating.
+        scheduled = start_date.isoformat() if day["day_number"] == 1 else None
         
-        days_data.append({
-            "day_number": i,
-            "scheduled_date": scheduled, 
-            "topic": f"Pending Generation", 
-            "is_locked": i > 1 
+        # Combine multiple topics into one title (e.g., "State & Props")
+        combined_title = " & ".join(day["topics"])
+        
+        neo4j_data.append({
+            "day_number": day["day_number"],
+            "topic": combined_title,
+            "sub_tasks": day["sub_tasks"], # Saves the specific list!
+            "scheduled_date": scheduled,
+            "is_locked": day["day_number"] > 1
         })
 
     query = """
@@ -88,17 +93,17 @@ def generate_timeline(goal_id: str, start_date: date, duration_days: int):
         id: randomUUID(),
         day_number: day_item.day_number,
         topic: day_item.topic,
+        sub_tasks: day_item.sub_tasks,  // <--- Saving the list of strings
         scheduled_date: day_item.scheduled_date, 
         is_locked: day_item.is_locked,
-        is_completed: false,
-        sub_tasks: []
+        is_completed: false
     })
     MERGE (g)-[:HAS_DAY]->(d)
     
+    // Link the chain (Day 1 -> Day 2 -> Day 3)
     WITH d
     ORDER BY d.day_number
     WITH collect(d) as days
-    
     FOREACH (i in range(0, size(days)-2) |
         FOREACH (d1 in [days[i]] |
             FOREACH (d2 in [days[i+1]] |
@@ -107,11 +112,12 @@ def generate_timeline(goal_id: str, start_date: date, duration_days: int):
     )
     RETURN size(days) as days_created
     """
+    
     with graph_db.get_session() as session:
-        result = session.run(query, goal_id=goal_id, days_data=days_data)
+        result = session.run(query, goal_id=goal_id, days_data=neo4j_data)
         record = result.single()
         return record["days_created"] if record else 0
-        
+          
 
 def get_goal_roadmap(goal_id: str):
     """
@@ -127,7 +133,9 @@ def get_goal_roadmap(goal_id: str):
             day_number: d.day_number,
             topic: d.topic,
             is_locked: d.is_locked,
-            is_completed: coalesce(d.is_completed, false)
+            is_completed: coalesce(d.is_completed, false),
+            sub_tasks: coalesce(d.sub_tasks, []),  
+            sub_task_states: coalesce(d.sub_task_states, [])
         }) as days
     """
     with graph_db.get_session() as session:
@@ -143,6 +151,25 @@ def get_goal_roadmap(goal_id: str):
         data["days"] = sorted(data["days"], key=lambda x: x["day_number"])
         return data
 
+def update_subtask_states(goal_id: str, day_number: int, states: list[bool]):
+    """
+    Saves the checkbox states. Includes Debugging Logs.
+    """
+    query = """
+    MATCH (g:Goal {id: $goal_id})-[:HAS_DAY]->(d:Day {day_number: $day_number})
+    SET d.sub_task_states = $states
+    RETURN d.id as id, d.sub_task_states as saved_states
+    """
+    with graph_db.get_session() as session:
+        result = session.run(query, goal_id=goal_id, day_number=day_number, states=states)
+        record = result.single()
+        
+        if record:
+            print(f"✅ DB SUCCESS: Day {day_number} updated to {record['saved_states']}")
+        else:
+            print(f"❌ DB ERROR: Could not find Day {day_number} for Goal {goal_id}")
+
+            
 def get_all_goals(user_id: str):
     """
     Returns goals with:

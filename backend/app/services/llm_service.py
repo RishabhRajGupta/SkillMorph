@@ -95,6 +95,90 @@ class LLMService:
                 "topic": f"Day {day_number}: {goal_title}",
                 "sub_tasks": ["Research topic", "Practice basics", "Review notes"]
             }
+        
+
+    def generate_smart_roadmap(self, goal_title: str, user_context: str = "", daily_minutes: int = 60) -> list:
+        """
+        Generates a complete, paced schedule.
+        1. Asks LLM for granular topics + time estimates.
+        2. Uses Python to pack them into days (Bin Packing).
+        """
+        
+        # Step 1: Get Raw Topics from LLM
+        prompt = f"""
+        Act as an expert curriculum designer. Create a learning path for '{goal_title}'.
+        Context: {user_context}
+        
+        Break this skill down into GRANULAR, bite-sized topics. 
+        For EACH topic, provide:
+        1. title: A short specific title (e.g. "React Hooks: useState")
+        2. minutes: Estimated time for a beginner to grasp this concept and practice it.
+        3. sub_tasks: 3-4 highly specific actionable steps (Read X, Build Y).
+        
+        CRITICAL INSTRUCTION: 
+        - Do not think in "Days". Think in "Concepts".
+        - Return a list of at least 15-20 concepts.
+        - Output STRICT JSON only.
+        
+        JSON Format:
+        [
+          {{ "title": "Concept Name", "minutes": 45, "sub_tasks": ["Read docs", "Write code"] }},
+          ...
+        ]
+        """
+        
+        response_text = self._generate_text_safe(prompt, default="[]")
+        
+        try:
+            # Clean and Parse JSON
+            clean_text = response_text.replace("```json", "").replace("```", "").strip()
+            topics = json.loads(clean_text)
+            
+            # Step 2: Run the Bin Packing Scheduler
+            return self._schedule_topics(topics, daily_minutes)
+            
+        except json.JSONDecodeError:
+            print(f"❌ JSON Parse Error. Raw: {response_text}")
+            return [] # Fail gracefully
+
+    def _schedule_topics(self, topics: list, daily_limit: int) -> list:
+        """
+        Internal Scheduler Algorithm (Bin Packing).
+        Groups topics into Days so that no day exceeds the daily_limit (mostly).
+        """
+        schedule = []
+        current_day = {
+            "day_number": 1, 
+            "topics": [], 
+            "minutes_used": 0,
+            "sub_tasks": []
+        }
+        
+        for topic in topics:
+            t_min = topic.get("minutes", 30)
+            
+            # Check if this topic fits in the current day
+            # (Allow overflow if the day is empty, so we don't get stuck on huge topics)
+            if (current_day["minutes_used"] + t_min <= daily_limit) or (current_day["minutes_used"] == 0):
+                # Add to current day
+                current_day["topics"].append(topic["title"])
+                current_day["sub_tasks"].extend(topic["sub_tasks"])
+                current_day["minutes_used"] += t_min
+            else:
+                # Day is full. Save it and start a new one.
+                schedule.append(current_day)
+                current_day = {
+                    "day_number": len(schedule) + 1,
+                    "topics": [topic["title"]],
+                    "minutes_used": t_min,
+                    "sub_tasks": topic["sub_tasks"]
+                }
+        
+        # Don't forget the last partial day
+        if current_day["topics"]:
+            schedule.append(current_day)
+            
+        return schedule
 
 # Singleton Instance
 llm_service = LLMService()

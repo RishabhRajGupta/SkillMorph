@@ -4,6 +4,7 @@ package com.example.skillmorph.presentation.goaldetail
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +44,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,8 +54,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +80,7 @@ fun MetroMapScreen(
     viewModel: MetroMapViewModel = hiltViewModel() 
 ) {
     val dayPlans by viewModel.dayPlans.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -105,7 +111,10 @@ fun MetroMapScreen(
     ) { innerPadding ->
         MetroMapTimeline(
             days = dayPlans,
-            onDayComplete = { viewModel.completeDay(it) },
+            // Pass the Toggle Event
+            onToggleSubtask = { dayNum, index -> viewModel.toggleSubtask(dayNum, index) },
+            // Pass the Complete Event (With Context)
+            onDayComplete = { dayNum -> viewModel.completeDay(dayNum, context) },
             modifier = Modifier.padding(innerPadding)
         )
     }
@@ -116,6 +125,7 @@ fun MetroMapScreen(
 fun MetroMapTimeline(
     days: List<DayPlan>,
     onDayComplete: (Int) -> Unit,
+    onToggleSubtask: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -123,7 +133,7 @@ fun MetroMapTimeline(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp)
     ) {
         itemsIndexed(days) { index, day ->
-            TimelineItem(day = day, onDayComplete = onDayComplete, isLastItem = index == days.size - 1)
+            TimelineItem(day = day, onDayComplete = onDayComplete, onToggleSubtask = onToggleSubtask, isLastItem = index == days.size - 1)
         }
     }
 }
@@ -132,6 +142,7 @@ fun MetroMapTimeline(
 private fun TimelineItem(
     day: DayPlan,
     onDayComplete: (Int) -> Unit,
+    onToggleSubtask: (Int, Int) -> Unit,
     isLastItem: Boolean
 ) {
     Row(
@@ -145,7 +156,7 @@ private fun TimelineItem(
         Spacer(modifier = Modifier.width(16.dp))
 
         Box(modifier = Modifier.padding(bottom = 24.dp)) {
-            NodeCard(node = day, onDayComplete = onDayComplete)
+            NodeCard(node = day, onDayComplete = onDayComplete, onToggleSubtask = onToggleSubtask)
         }
     }
 }
@@ -210,11 +221,11 @@ private fun CurrentNodeIcon() {
 // --- 3. The Cards (Content) ---
 
 @Composable
-private fun NodeCard(node: DayPlan, onDayComplete: (Int) -> Unit) {
+private fun NodeCard(node: DayPlan, onDayComplete: (Int) -> Unit, onToggleSubtask: (Int, Int) -> Unit) {
     Column(modifier = Modifier.padding(top = 2.dp)) { // Align card with node
         when (node.status) {
             TimelineStatus.COMPLETED -> CompletedTaskCard(node)
-            TimelineStatus.CURRENT -> CurrentTaskCard(node, onDayComplete)
+            TimelineStatus.CURRENT -> CurrentTaskCard(node, onDayComplete = onDayComplete, onToggleSubtask=onToggleSubtask)
             TimelineStatus.LOCKED -> LockedTaskCard(node)
         }
     }
@@ -237,9 +248,11 @@ private fun CompletedTaskCard(node: DayPlan) {
 }
 
 @Composable
-private fun CurrentTaskCard(node: DayPlan, onDayComplete: (Int) -> Unit) {
-    var subtaskStates by remember { mutableStateOf(node.subTasks.map { false }.toMutableList()) }
-
+private fun CurrentTaskCard(
+    node: DayPlan,
+    onToggleSubtask: (Int, Int) -> Unit, // <--- New Callback
+    onDayComplete: (Int) -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -248,18 +261,36 @@ private fun CurrentTaskCard(node: DayPlan, onDayComplete: (Int) -> Unit) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("${node.dayLabel}: ${node.topic}", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 18.sp)
             Spacer(modifier = Modifier.height(16.dp))
-            
-            node.subTasks.forEachIndexed { index, task ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = subtaskStates[index],
-                        onCheckedChange = { subtaskStates[index] = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Blue,
-                            uncheckedColor = Color.Gray
+
+            // 🔴 RENDER FROM PERSISTED STATE
+            if (node.subTasks.isNotEmpty()) {
+                node.subTasks.forEachIndexed { index, task ->
+                    val isChecked = node.subTaskStates.getOrElse(index) { false } // Safety read
+
+                    Row(
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier
+                            .padding(vertical = 4.dp)
+                            .clickable { onToggleSubtask(node.dayNumber, index) } // Click Row to toggle
+                    ) {
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = { onToggleSubtask(node.dayNumber, index) }, // Click Box to toggle
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Blue,
+                                uncheckedColor = Color.Gray,
+                                checkmarkColor = Color.White
+                            ),
+                            modifier = Modifier.size(24.dp)
                         )
-                    )
-                    Text(task, color = Color.LightGray)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = task,
+                            color = if (isChecked) Color.Gray else Color.LightGray, // Dim text if done
+                            textDecoration = if (isChecked) TextDecoration.LineThrough else null, // Strike through
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
 
@@ -268,12 +299,15 @@ private fun CurrentTaskCard(node: DayPlan, onDayComplete: (Int) -> Unit) {
             Button(
                 onClick = { onDayComplete(node.dayNumber) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Blue),
+                // 🔴 Visual Feedback: Disable button color if not done (optional)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (node.subTaskStates.all { it }) Blue else Color.Gray
+                ),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Icon(Icons.Default.Lock, null, tint = DarkBackground)
+                Icon(Icons.Default.LockOpen, null, tint = DarkBackground)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("UNLOCK NEXT DAY", color = DarkBackground, fontWeight = FontWeight.Bold)
+                Text("COMPLETE STATION", color = DarkBackground, fontWeight = FontWeight.Bold)
             }
         }
     }

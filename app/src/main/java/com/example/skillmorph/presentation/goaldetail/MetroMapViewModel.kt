@@ -9,6 +9,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillmorph.data.remote.SkillMorphApi
+import com.example.skillmorph.data.remote.UpdateSubtasksRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,24 +42,37 @@ class MetroMapViewModel @Inject constructor(
 
                 // 3. Map Backend Data -> UI Data
                 val uiDays = response.days.map { dto ->
-                    // Determine Status
                     val status = when {
                         dto.isCompleted -> TimelineStatus.COMPLETED
                         dto.isLocked -> TimelineStatus.LOCKED
                         else -> TimelineStatus.CURRENT
                     }
 
-                    // Map to your existing UI Model
+                    // 🔴 LOGIC UPDATE: Use real subtasks or fallback defaults
+                    val realSubTasks = if (!dto.subTasks.isNullOrEmpty()) {
+                        dto.subTasks
+                    } else {
+                        // Fallback for old goals created before this update
+                        listOf("Review Topic Materials", "Practice Core Concepts", "Summary Notes")
+                    }
+
+                    val realStates = realSubTasks.mapIndexed { index, _ ->
+                        // If the backend sent a state for this index, use it. Otherwise false.
+                        if (dto.subTaskStates != null && index < dto.subTaskStates.size) {
+                            dto.subTaskStates[index]
+                        } else {
+                            false
+                        }
+                    }
+
                     DayPlan(
                         dayNumber = dto.dayNumber,
                         dayLabel = "Day ${dto.dayNumber}",
                         topic = dto.topic,
                         isBufferDay = false,
                         status = status,
-                        // Backend doesn't support subtasks yet, so we verify logic
-                        subTasks = if (status == TimelineStatus.CURRENT)
-                            listOf("Read Documentation", "Practice Code", "Review")
-                        else emptyList(),
+                        subTasks = realSubTasks, // <--- Pass the real list here
+                        subTaskStates = realStates,
                         dateIso = ""
                     )
                 }
@@ -70,29 +84,64 @@ class MetroMapViewModel @Inject constructor(
         }
     }
 
-    fun completeDay(dayNumber: Int) {
+    fun toggleSubtask(dayNumber: Int, subTaskIndex: Int) {
+        val currentList = _dayPlans.value.toMutableList()
+        val dayIndex = currentList.indexOfFirst { it.dayNumber == dayNumber }
+        if (dayIndex == -1) return
+
+        val day = currentList[dayIndex]
+        val newStates = day.subTaskStates.toMutableList()
+        if (subTaskIndex < newStates.size) {
+            newStates[subTaskIndex] = !newStates[subTaskIndex]
+        }
+        currentList[dayIndex] = day.copy(subTaskStates = newStates)
+        _dayPlans.value = currentList
+
+        // 2. 🔴 NEW: Network Call (Save to DB)
+        viewModelScope.launch {
+            try {
+                // Send the entire list of booleans for this day
+                val request = UpdateSubtasksRequest(states = newStates)
+                api.updateSubtasks(
+                    goalId = goalId!!,
+                    dayNumber = dayNumber,
+                    request = request
+                )
+            } catch (e: Exception) {
+                Log.e("MetroVM", "Failed to save checkbox: ${e.message}")
+            }
+        }
+    }
+
+    fun completeDay(dayNumber: Int, context: android.content.Context) {
         if (goalId == null) return
 
-        // 1. Optimistic Update (Update UI instantly before server replies)
+        val day = _dayPlans.value.find { it.dayNumber == dayNumber } ?: return
+
+        // 1. Check if all tasks are done
+        // We check if "subTaskStates" contains any 'false'
+        if (day.subTaskStates.contains(false)) {
+            android.widget.Toast.makeText(context, "Complete all sub-quest first! 🛑", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 2. If Pass, Optimistic Update
         val currentList = _dayPlans.value.toMutableList()
-        val updatedList = currentList.map { day ->
-            when (day.dayNumber) {
-                dayNumber -> day.copy(status = TimelineStatus.COMPLETED)
-                dayNumber + 1 -> day.copy(status = TimelineStatus.CURRENT) // Unlock next
-                else -> day
+        val updatedList = currentList.map { d ->
+            when (d.dayNumber) {
+                dayNumber -> d.copy(status = TimelineStatus.COMPLETED)
+                dayNumber + 1 -> d.copy(status = TimelineStatus.CURRENT)
+                else -> d
             }
         }
         _dayPlans.value = updatedList
 
-        // 2. Network Call
+        // 3. Network Call
         viewModelScope.launch {
             try {
-                val response = api.completeGoalTask(goalId, dayNumber)
-                Log.d("MetroMapVM", "Day completed! New Goal Progress: ${response.new_progress}%")
-                // You could perform a global event here to refresh the Home Screen if needed
+                api.completeGoalTask(goalId, dayNumber)
             } catch (e: Exception) {
-                Log.e("MetroMapVM", "Failed to save progress: ${e.message}")
-                // Ideally, revert the optimistic update here if it failed
+                Log.e("MetroVM", "Sync failed: ${e.message}")
             }
         }
     }

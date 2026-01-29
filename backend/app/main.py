@@ -8,9 +8,10 @@ from typing import Optional
 from app.core.config import settings
 from app.services.neo4j_service import graph_db
 from app.services.graph_crud import (
-    create_goal_in_db, generate_timeline, get_all_goals, 
+    create_goal_in_db, create_smart_timeline, get_all_goals, 
     get_goal_roadmap, mark_day_complete, update_day_content, 
-    get_tasks_for_date, create_side_quest, get_user_profile_stats
+    get_tasks_for_date, create_side_quest, get_user_profile_stats,
+    update_subtask_states
 )
 from app.services.chat_session_service import (
     get_or_create_daily_session, 
@@ -37,6 +38,9 @@ class ChatRequest(BaseModel):
 class TaskCreate(BaseModel):
     title: str
     date: str
+
+class SubtaskUpdate(BaseModel):
+    states: list[bool]
 
 # --- LIFECYCLE ---
 @asynccontextmanager
@@ -75,21 +79,33 @@ def get_goals_endpoint(user_id: str = Depends(get_current_user)): # <--- UPDATED
     return get_all_goals(user_id)
 
 @app.post("/goals")
-def create_goal_endpoint(goal: GoalCreate, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)): # <--- UPDATED
+def create_goal_endpoint(goal: GoalCreate, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_user)):
+    # 1. Create the Goal Node (Meta data)
     result = create_goal_in_db(user_id, goal)
     goal_id = result["id"]
 
-    # Generate Timeline Immediately (Sync) so user sees it
-    generate_timeline(result["id"], datetime.date.today(), goal.days)
-    
-    background_tasks.add_task(run_content_generation, goal_id, 2)
-
-    ai_message = (
-        f"That sounds like a fantastic challenge! I've created the goal '{goal.title}' "
-        f"for you. It's a {goal.days}-day journey, and I've already set up the first steps. "
-        f"Good luck!"
+    # 2. 🔴 NEW: Generate Smart Schedule (Sync)
+    # We ask the AI to plan the roadmap immediately. 
+    # 'daily_minutes=60' is the pacing. You can eventually make this a user input.
+    schedule = llm_service.generate_smart_roadmap(
+        goal_title=goal.title, 
+        user_context=f"Category: {goal.category}", 
+        daily_minutes=60 
     )
-    return {"message": ai_message, "data": result}
+
+    # 3. 🔴 NEW: Save the Smart Timeline to Neo4j
+    # This saves the Topics AND Subtasks immediately.
+    # We ignore 'goal.days' because the AI determines the length now.
+    total_days = create_smart_timeline(goal_id, schedule, datetime.date.today())
+    
+    # 4. Success Message (Updated)
+    ai_message = (
+        f"Challenge accepted! I've analyzed '{goal.title}' and built a custom plan for you. "
+        f"Based on your pace, I've broken this down into {total_days} days of specific tasks. "
+        f"Check your Metro Map to start!"
+    )
+    
+    return {"message": ai_message, "data": {**result, "total_days": total_days}}
 
 @app.get("/goals/{goal_id}/roadmap")
 def get_roadmap_endpoint(goal_id: str):
@@ -144,6 +160,18 @@ def complete_day_endpoint(
     background_tasks.add_task(run_content_generation, goal_id, day_number + 2)
     
     return {"status": "success", "new_progress": new_progress}
+
+@app.put("/goals/{goal_id}/days/{day_number}/subtasks")
+def update_subtasks_endpoint(
+    goal_id: str, 
+    day_number: int, 
+    update: SubtaskUpdate
+):
+    """
+    Saves the checkbox states for a specific day.
+    """
+    update_subtask_states(goal_id, day_number, update.states)
+    return {"status": "success", "states": update.states}
 
 # 4. MEMORY & CHAT
 @app.post("/memory/")

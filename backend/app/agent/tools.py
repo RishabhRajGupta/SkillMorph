@@ -1,6 +1,6 @@
 from langchain_core.tools import tool
 from app.services.graph_crud import (
-    create_goal_in_db, generate_timeline, get_tasks_for_date, 
+    create_goal_in_db, create_smart_timeline, get_tasks_for_date, 
     mark_day_complete, update_day_content, create_side_quest,
     delete_task_from_db, delete_goal_from_db, get_all_goals,
     get_goal_roadmap, mark_side_quest_complete
@@ -15,15 +15,22 @@ import json
 # --- EXISTING TOOLS (Keep create_new_goal & get_todays_tasks) ---
 
 @tool
-def create_new_goal(user_id: str, title: str, category: str, days: int = 30):
+def create_new_goal(user_id: str, title: str, category: str, context: str = ""):
     """
-    Creates a new learning goal or project roadmap. 
-    Use this when the user wants to learn something, prepare for a test, or start a habit.
-    """
-    print(f"🛠️ TOOL: Creating Goal '{title}' for {days} days.")
+    Creates a smart learning roadmap.
+    Use this when the user wants to learn something.
     
-    # 1. Create in DB (The Shell)
-    new_goal = GoalCreate(title=title, category=category, days=days)
+    Args:
+        title: The name of the skill (e.g., "Python", "Public Speaking").
+        category: The domain (e.g., "Coding", "Soft Skills").
+        context: Optional details about why they want to learn it (e.g., "for an interview").
+    """
+    print(f"🛠️ TOOL: Creating Smart Goal '{title}'...")
+    
+    # 1. Create the Goal Node (Meta Data)
+    # We pass 30 as a dummy value for 'days' just to satisfy the Schema, 
+    # but the AI will decide the real length.
+    new_goal = GoalCreate(title=title, category=category, days=30)
     result = create_goal_in_db(user_id, new_goal)
     
     if not result:
@@ -31,40 +38,27 @@ def create_new_goal(user_id: str, title: str, category: str, days: int = 30):
 
     goal_id = result["id"]
 
-    # 2. Generate Timeline (Create "Pending" nodes for all 30 days)
-    generate_timeline(goal_id, date.today(), days)
+    # 2. Generate the Smart Schedule (The Brain)
+    # This gets the full list of topics, subtasks, and bins them into days.
+    # We assume a standard 60-minute daily pace for now.
+    schedule = llm_service.generate_smart_roadmap(
+        goal_title=title, 
+        user_context=context, 
+        daily_minutes=60
+    )
 
-    # 3. Background Job: Generate Content for Day 1 AND Day 2
-    def run_bg_gen():
-        print(f"🧵 Thread Started: Generating content for {title}...")
-        
-        # --- GENERATE DAY 1 ---
-        try:
-            print("  🧠 Generating Day 1...")
-            content_d1 = llm_service.generate_day_topic(title, 1)
-            update_day_content(goal_id, 1, content_d1["topic"], content_d1["sub_tasks"])
-            print("  ✅ Day 1 Saved.")
-        except Exception as e:
-            print(f"  ❌ Day 1 Failed: {e}")
-            return # Stop if Day 1 fails
+    if not schedule:
+        return f"Error: I couldn't generate a roadmap for '{title}'. Please try again."
 
-        # --- GENERATE DAY 2 ---
-        try:
-            print("  🧠 Generating Day 2...")
-            # Optional: Add a small delay to be nice to the API rate limit
-            import time
-            time.sleep(1) 
-            
-            content_d2 = llm_service.generate_day_topic(title, 2)
-            update_day_content(goal_id, 2, content_d2["topic"], content_d2["sub_tasks"])
-            print("  ✅ Day 2 Saved.")
-        except Exception as e:
-            print(f"  ❌ Day 2 Failed: {e}")
+    # 3. Save the Timeline (The Database)
+    # This creates all the nodes with specific subtasks immediately.
+    total_days = create_smart_timeline(goal_id, schedule, date.today())
 
-    # Start the thread
-    threading.Thread(target=run_bg_gen).start()
-
-    return f"Goal '{title}' created successfully! I've started generating the lesson plan for the first few days."
+    return (
+        f"Goal '{title}' created successfully! "
+        f"Based on the complexity, I have designed a {total_days}-day roadmap for you. "
+        f"Check your Metro Map to see the tasks."
+    )
 
 @tool
 def create_todo_item(user_id: str, title: str, due_date: str = None):

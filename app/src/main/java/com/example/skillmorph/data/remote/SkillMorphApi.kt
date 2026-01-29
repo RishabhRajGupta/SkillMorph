@@ -6,6 +6,7 @@ import retrofit2.http.Query
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 // 1. The Request Body (Matches Python 'ChatRequest')
@@ -46,12 +47,19 @@ data class MetroMapDto(
     val days: List<DayNodeDto>
 )
 
+data class UpdateSubtasksRequest(
+    @SerializedName("states")
+    val states: List<Boolean>
+)
 // The Day Item
 data class DayNodeDto(
     @SerializedName("day_number") val dayNumber: Int,
     val topic: String,
     @SerializedName("is_locked") val isLocked: Boolean,
-    @SerializedName("is_completed") val isCompleted: Boolean
+    @SerializedName("is_completed") val isCompleted: Boolean,
+    @SerializedName("sub_tasks") val subTasks: List<String>? = emptyList(),
+    @SerializedName("sub_task_states") val subTaskStates: List<Boolean>? = emptyList(),
+    val dateIso: String
 )
 
 data class ProgressResponse(
@@ -106,6 +114,13 @@ interface SkillMorphApi {
         @Path("goal_id") goalId: String,
         @Path("day_number") dayNumber: Int
     ): ProgressResponse
+
+    @PUT("goals/{goalId}/days/{dayNumber}/subtasks")
+    suspend fun updateSubtasks(
+        @Path("goalId") goalId: String,
+        @Path("dayNumber") dayNumber: Int,
+        @Body request: UpdateSubtasksRequest // Sends {"states": [true, false]}
+    )
 
     @GET("/tasks/today")
     suspend fun getTasks(@Query("date") date: String): List<TaskDto>
