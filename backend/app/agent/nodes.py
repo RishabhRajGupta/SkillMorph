@@ -62,7 +62,7 @@ def agent_node(state: AgentState):
     user_id = state.get("user_id", "test_user_123")
     
     system_prompt = f"""
-    You are SkillMorph, an intelligent productivity agent.
+    You are SkillMorph, an intelligent productivity agent companion and expert tutor.
     Current User ID: {user_id}
     Current Date: {date.today().isoformat()}  <-- GIVE IT TODAY'S DATE
     
