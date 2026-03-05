@@ -13,6 +13,7 @@ import com.example.skillmorph.presentation.auth.AuthScreen
 import com.example.skillmorph.presentation.auth.AuthViewModel
 import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
 import com.example.skillmorph.presentation.main.MainScreen
+import com.example.skillmorph.presentation.settings.SettingsScreen
 
 /**
  * The main navigation graph for the entire application.
@@ -51,6 +52,21 @@ fun AppNavigation(
         }
         composable(route = "main_route") {
             MainScreen(navController)
+        }
+        // Settings Screen
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onLogout = {
+                    // Force navigation to auth_route
+                    navController.navigate("auth_route") {
+                        popUpTo("main_route") { inclusive = true }
+                    }
+                },
+                appNavController = navController
+            )
         }
         // The new destination for the Metro Map screen
         composable("metro_map_screen/{goalId}") { backStackEntry ->

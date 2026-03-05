@@ -1,9 +1,7 @@
 
 package com.example.skillmorph.presentation.main
 
-import android.R.attr.end
 import android.annotation.SuppressLint
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -30,22 +28,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.LocalFireDepartment
-import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,22 +49,16 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.focusModifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -77,7 +66,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -87,20 +75,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.skillmorph.HomeScreen
 import com.example.skillmorph.data.remote.SessionResponse
-import com.example.skillmorph.data.repository.AuthRepositoryImpl
 import com.example.skillmorph.presentation.Profile.ProfileScreen
-import com.example.skillmorph.presentation.Profile.ProfileViewModel
-import com.example.skillmorph.presentation.goaldetail.MetroMapScreen
-import com.example.skillmorph.presentation.goaldetail.MetroMapViewModel
 import com.example.skillmorph.presentation.goals.GoalsScreen
+import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
 import com.example.skillmorph.presentation.navigation.Screen
+import com.example.skillmorph.presentation.tasks.TasksScreen
 import com.example.skillmorph.ui.theme.NeonBlue
-import com.example.skillmorph.ui.theme.NeonCyan
 import com.example.skillmorph.ui.theme.TransparentWhite
 import com.example.skillmorph.utils.glassEffect
-import com.example.skillmorph.presentation.goaldetail.MetroMapTimeline
-import com.example.skillmorph.presentation.main.viewModel.AgentViewModel
-import com.example.skillmorph.presentation.tasks.TasksScreen
 import kotlinx.coroutines.launch
 
 
@@ -134,13 +116,11 @@ fun MainScreen(
                         popUpTo(navController.graph.findStartDestination().id)
                     }
                 },
-                onLogoutClick = {
-                    // Handle Logout Logic Here
-                    scope.launch { agentViewModel.signout()
+                onSettingsClick = {
+                    scope.launch {
                         drawerState.close()
-                        appNavController.navigate("login_screen")
+                        appNavController.navigate(Screen.Settings.route)
                     }
-                    // e.g., authViewModel.logout()
                 }
             )
         }
@@ -150,7 +130,7 @@ fun MainScreen(
             topBar = {
                 TopAppBar(
                     streakCount = currentStreak,
-                    isStreakActive = currentStreak>0,
+                    isStreakActive = currentStreak > 0,
                     hasNotification = true,
                     // 🟢 CONNECTED: Clicking Menu opens the Drawer
                     onMenuClick = { scope.launch { drawerState.open() } },
@@ -468,7 +448,7 @@ fun BottomNavBar(navController: NavController) {
 fun GlassyNavigationDrawerContent(
     pastSessions: List<SessionResponse>, // Assuming you have this data class
     onSessionClick: (String) -> Unit,
-    onLogoutClick: () -> Unit
+    onSettingsClick: () -> Unit
 ) {
     ModalDrawerSheet(
         drawerContainerColor = Color.Transparent, // Crucial: Remove default solid background
@@ -497,7 +477,7 @@ fun GlassyNavigationDrawerContent(
             DrawerHeader()
 
             Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = Color.White.copy(alpha = 0.1f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
             Spacer(modifier = Modifier.height(16.dp))
 
             // 2. Scrollable History List
@@ -521,11 +501,11 @@ fun GlassyNavigationDrawerContent(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = Color.White.copy(alpha = 0.1f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Red Glassy Logout Button
-            GlassyLogoutButton(onClick = onLogoutClick)
+            // 3. Settings Button
+            GlassySettingsButton(onClick = onSettingsClick)
         }
     }
 }
@@ -604,24 +584,23 @@ fun GlassySessionItem(session: SessionResponse, onClick: () -> Unit) {
 }
 
 @Composable
-fun GlassyLogoutButton(onClick: () -> Unit) {
+fun GlassySettingsButton(onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            // Custom Glassy Red Look
-            .border(1.dp, Color(0xFFFF5252).copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFFF5252).copy(alpha = 0.1f), // Transparent Red
-            contentColor = Color(0xFFFF5252) // Red Text
+            containerColor = Color.White.copy(alpha = 0.05f),
+            contentColor = Color.White
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Log Out", fontWeight = FontWeight.Bold)
+            Text("Settings", fontWeight = FontWeight.Bold)
         }
     }
 }

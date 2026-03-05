@@ -17,7 +17,7 @@ object NetworkModule {
 
     // ⚠️ REPLACE THIS WITH YOUR CURRENT PINGGY/NGROK URL
     // MUST END WITH A SLASH /
-    private const val BASE_URL = "https://cathleen-unchipping-elmer.ngrok-free.dev/"
+    private const val BASE_URL = "https://skillmorph-api.onrender.com/"
 
     @Provides
     @Singleton

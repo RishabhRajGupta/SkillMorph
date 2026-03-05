@@ -11,6 +11,11 @@ import kotlinx.coroutines.flow.Flow
 interface AuthRepository {
 
     /**
+     * A flow that emits the currently logged-in user or null if logged out.
+     */
+    val currentUserFlow: Flow<FirebaseUser?>
+
+    /**
      * Signs in the user with Google using the credential from Credential Manager.
      * @param result The response from the Credential Manager API.
      * @return A Flow that emits the result of the sign-in attempt.

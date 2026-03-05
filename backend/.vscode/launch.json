@@ -3,6 +3,27 @@
   "configurations": [
     {
       "type": "java",
+      "name": "Solution3",
+      "request": "launch",
+      "mainClass": "Solution3",
+      "projectName": "backend_6c397495"
+    },
+    {
+      "type": "java",
+      "name": "Solution",
+      "request": "launch",
+      "mainClass": "Solution",
+      "projectName": "backend_6c397495"
+    },
+    {
+      "type": "java",
+      "name": "Solution2",
+      "request": "launch",
+      "mainClass": "Solution2",
+      "projectName": "backend_6c397495"
+    },
+    {
+      "type": "java",
       "name": "Test",
       "request": "launch",
       "mainClass": "Test",
