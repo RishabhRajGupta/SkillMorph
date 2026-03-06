@@ -1,4 +1,7 @@
 
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,16 +10,23 @@ plugins {
     alias(libs.plugins.google.services) // Apply the Google Services plugin
 }
 
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        load(FileInputStream(localPropertiesFile))
+    }
+}
+
 android {
-    namespace = "com.example.skillmorph"
-    compileSdk = 34
+    namespace = "com.skillmorph.skillmorph"
+    compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.skillmorph"
+        applicationId = "com.skillmorph.skillmorph"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -24,7 +34,6 @@ android {
         }
     }
 
-    // removing key ka jhanjhat
     signingConfigs {
         create("sharedDebug") {
             storeFile = file("keystore/debug.keystore")
@@ -32,17 +41,23 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        create("release") {
+            // Updated to the exact filename found in the git logs
+            storeFile = file("keystore/release-key")
+            storePassword = localProperties.getProperty("release.store.password")
+            keyAlias = localProperties.getProperty("release.key.alias")
+            keyPassword = localProperties.getProperty("release.key.password")
+        }
     }
 
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("sharedDebug")
         }
-    }
-
-    buildTypes {
         release {
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -83,6 +98,10 @@ dependencies {
 
     // Material Icons
     implementation(libs.androidx.compose.material.icons.extended)
+
+    // Credentials Manager
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
 
     // Navigation
     implementation(libs.androidx.navigation.compose)

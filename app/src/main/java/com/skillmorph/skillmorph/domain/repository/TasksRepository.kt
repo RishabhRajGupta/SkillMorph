@@ -1,0 +1,18 @@
+
+package com.skillmorph.skillmorph.domain.repository
+
+interface TasksRepository {
+
+    /**
+     * Fetches all tasks for a given date.
+     * @param date The date in milliseconds (timestamp).
+     * @return A flow emitting the list of tasks for that day.
+     */
+//    fun getTasksForDate(date: Long): Flow<List<TaskEntity>>
+
+    /**
+     * Updates a task in the database.
+     * @param task The task entity to update.
+     */
+//    suspend fun updateTask(task: TaskEntity)
+}

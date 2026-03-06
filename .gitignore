@@ -1,15 +1,41 @@
+# Gradle files
+.gradle/
+build/
+/*/build/
+
+# IDE files
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+*.iws
+*.ipr
+.vscode/
+
+# Local configuration
 local.properties
+
+# Signing files
+*.jks
+*.keystore
+release-key
+
+# Firebase
+google-services.json
+
+# Build outputs (APKs, AABs)
+*.apk
+*.aab
+**/release/
+**/debug/
+
+# Captures and logs
+captures/
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/.env
